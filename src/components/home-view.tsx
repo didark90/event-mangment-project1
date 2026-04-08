@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { motion, useInView } from "framer-motion";
 import { useSession } from "next-auth/react";
 import {
@@ -17,6 +17,190 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/app-store";
+
+/* ------------------------------------------------------------------ */
+/*  Interactive Particle Network Background                              */
+/* ------------------------------------------------------------------ */
+function ParticleNetwork() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouseRef = useRef({ x: -9999, y: -9999 });
+  const particlesRef = useRef<Particle[]>([]);
+  const animFrameRef = useRef<number>(0);
+
+  interface Particle {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    radius: number;
+    opacity: number;
+  }
+
+  const initParticles = useCallback((width: number, height: number) => {
+    const count = Math.min(Math.floor((width * height) / 12000), 80);
+    const particles: Particle[] = [];
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: (Math.random() - 0.5) * 0.6,
+        radius: Math.random() * 2 + 1,
+        opacity: Math.random() * 0.5 + 0.2,
+      });
+    }
+    particlesRef.current = particles;
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const resize = () => {
+      const rect = canvas.parentElement?.getBoundingClientRect();
+      if (!rect) return;
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      initParticles(canvas.width, canvas.height);
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+
+    const handleMouse = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+
+    const handleMouseLeave = () => {
+      mouseRef.current = { x: -9999, y: -9999 };
+    };
+
+    canvas.addEventListener("mousemove", handleMouse);
+    canvas.addEventListener("mouseleave", handleMouseLeave);
+
+    const MOUSE_RADIUS = 160;
+    const CONNECTION_DIST = 140;
+    const MOUSE_CONNECTION_DIST = 200;
+
+    const animate = () => {
+      const { width, height } = canvas;
+      ctx.clearRect(0, 0, width, height);
+
+      const particles = particlesRef.current;
+      const mouse = mouseRef.current;
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+
+        // Mouse attraction/repulsion
+        const dx = mouse.x - p.x;
+        const dy = mouse.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < MOUSE_RADIUS && dist > 0) {
+          const force = (MOUSE_RADIUS - dist) / MOUSE_RADIUS;
+          p.vx += (dx / dist) * force * 0.02;
+          p.vy += (dy / dist) * force * 0.02;
+        }
+
+        // Speed damping
+        p.vx *= 0.995;
+        p.vy *= 0.995;
+
+        // Move
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Bounce off edges
+        if (p.x < 0 || p.x > width) p.vx *= -1;
+        if (p.y < 0 || p.y > height) p.vy *= -1;
+        p.x = Math.max(0, Math.min(width, p.x));
+        p.y = Math.max(0, Math.min(height, p.y));
+
+        // Draw particle with glow
+        const isNearMouse = dist < MOUSE_RADIUS;
+        const glowOpacity = isNearMouse
+          ? Math.min(p.opacity + 0.4, 0.9)
+          : p.opacity;
+        const glowRadius = isNearMouse ? p.radius * 2.5 : p.radius * 1.5;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, glowRadius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${glowOpacity * 0.15})`;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${glowOpacity})`;
+        ctx.fill();
+
+        // Connections between particles
+        for (let j = i + 1; j < particles.length; j++) {
+          const p2 = particles[j];
+          const cdx = p.x - p2.x;
+          const cdy = p.y - p2.y;
+          const cdist = Math.sqrt(cdx * cdx + cdy * cdy);
+
+          if (cdist < CONNECTION_DIST) {
+            const opacity = (1 - cdist / CONNECTION_DIST) * 0.15;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+          }
+        }
+
+        // Connection to mouse cursor
+        if (dist < MOUSE_CONNECTION_DIST && dist > 0) {
+          const opacity = (1 - dist / MOUSE_CONNECTION_DIST) * 0.3;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(mouse.x, mouse.y);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+
+          // Mouse glow dot
+          if (i === 0) {
+            ctx.beginPath();
+            ctx.arc(mouse.x, mouse.y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, 0.6)`;
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(mouse.x, mouse.y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, 0.08)`;
+            ctx.fill();
+          }
+        }
+      }
+
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      window.removeEventListener("resize", resize);
+      canvas.removeEventListener("mousemove", handleMouse);
+      canvas.removeEventListener("mouseleave", handleMouseLeave);
+      cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [initParticles]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 h-full w-full"
+      style={{ pointerEvents: "auto" }}
+    />
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Animation helpers                                                  */
@@ -108,9 +292,13 @@ export function HomeView() {
 
   return (
     <div className="flex flex-col">
-      {/* ===== Hero ===== */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-teal-700">
-        {/* Decorative blobs */}
+      {/* ===== Hero with Interactive Particle Background ===== */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800">
+        {/* Interactive particle canvas */}
+        <ParticleNetwork />
+
+        {/* Decorative gradient overlays for depth */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
         <div className="pointer-events-none absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-white/5 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-32 -right-32 h-[400px] w-[400px] rounded-full bg-white/5 blur-3xl" />
 
@@ -120,7 +308,7 @@ export function HomeView() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-sm font-medium text-white backdrop-blur-sm"
+            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm font-medium text-white backdrop-blur-sm"
           >
             <CalendarDays className="size-4" />
             EventHub
@@ -128,7 +316,7 @@ export function HomeView() {
 
           {/* Heading */}
           <motion.h1
-            className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl md:text-6xl"
+            className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-white drop-shadow-sm sm:text-5xl md:text-6xl"
             variants={fadeUp}
             custom={1}
             initial="hidden"
@@ -142,7 +330,7 @@ export function HomeView() {
 
           {/* Subheading */}
           <motion.p
-            className="max-w-xl text-lg text-emerald-100"
+            className="max-w-xl text-lg text-emerald-100 drop-shadow-sm"
             variants={fadeUp}
             custom={2}
             initial="hidden"
@@ -162,7 +350,7 @@ export function HomeView() {
           >
             <Button
               size="lg"
-              className="h-12 rounded-lg bg-white px-8 font-semibold text-emerald-700 shadow-lg hover:bg-white/90"
+              className="h-12 rounded-lg bg-white px-8 font-semibold text-emerald-700 shadow-lg shadow-black/10 hover:bg-white/90"
               onClick={() => setCurrentView("events")}
             >
               Explore Events
@@ -177,6 +365,23 @@ export function HomeView() {
             >
               {session ? "Dashboard" : "Get Started"}
             </Button>
+          </motion.div>
+
+          {/* Scroll hint */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5, duration: 0.8 }}
+            className="mt-8 flex flex-col items-center gap-1"
+          >
+            <span className="text-xs font-medium text-white/40 uppercase tracking-widest">Scroll to explore</span>
+            <motion.div
+              animate={{ y: [0, 6, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              className="mt-1 h-6 w-4 rounded-full border-2 border-white/30 p-0.5"
+            >
+              <div className="h-1.5 w-full rounded-full bg-white/50" />
+            </motion.div>
           </motion.div>
         </div>
       </section>
@@ -239,8 +444,12 @@ export function HomeView() {
       </section>
 
       {/* ===== CTA ===== */}
-      <section className="bg-gradient-to-br from-emerald-600 to-teal-700">
-        <AnimatedSection className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-20 text-center md:py-24">
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800">
+        {/* Subtle decoration */}
+        <div className="pointer-events-none absolute -top-20 -right-20 h-[300px] w-[300px] rounded-full bg-white/5 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-[250px] w-[250px] rounded-full bg-white/5 blur-3xl" />
+
+        <AnimatedSection className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-20 text-center md:py-24">
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Ready to Get Started?
           </h2>
@@ -250,7 +459,7 @@ export function HomeView() {
           </p>
           <Button
             size="lg"
-            className="mt-2 h-12 rounded-lg bg-white px-8 font-semibold text-emerald-700 shadow-lg hover:bg-white/90"
+            className="mt-2 h-12 rounded-lg bg-white px-8 font-semibold text-emerald-700 shadow-lg shadow-black/10 hover:bg-white/90"
             onClick={() => setCurrentView("auth")}
           >
             Sign Up Now
