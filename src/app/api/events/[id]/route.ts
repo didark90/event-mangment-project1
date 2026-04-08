@@ -49,7 +49,7 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const userId = (session.user as { id: string }).id;
+    const userId = session.user.id;
     const body = await request.json();
     const { title, description, date, location, category, status } = body;
 
@@ -109,7 +109,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const userId = (session.user as { id: string }).id;
+    const userId = session.user.id;
 
     const existingEvent = await db.event.findUnique({ where: { id } });
 

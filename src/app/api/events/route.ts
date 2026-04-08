@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = (session.user as { id: string }).id;
+    const userId = session.user.id;
 
     const event = await db.event.create({
       data: {

@@ -129,7 +129,7 @@ export function EventsView() {
         params.set("category", categoryFilter);
       }
       if (session?.user) {
-        params.set("userId", (session.user as { id: string }).id);
+        params.set("userId", session.user.id);
       }
       const response = await fetch(`/api/events?${params.toString()}`);
       const data = await response.json();
@@ -299,7 +299,7 @@ export function EventsView() {
 
   const isOwner = (event: Event) => {
     if (!session?.user) return false;
-    return event.user.id === (session.user as { id: string }).id;
+    return event.user.id === session.user.id;
   };
 
   const EventForm = ({

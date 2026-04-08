@@ -2,8 +2,13 @@
 
 import { CalendarDays, Mail, MapPin, Phone } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useAppStore } from "@/store/app-store";
+import { useSession } from "next-auth/react";
 
 export function Footer() {
+  const { setCurrentView } = useAppStore();
+  const { data: session } = useSession();
+
   return (
     <footer className="border-t bg-muted/30 mt-auto">
       <div className="container mx-auto px-4 py-8">
@@ -27,23 +32,35 @@ export function Footer() {
             </h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <button className="hover:text-foreground transition-colors">
-                  About Us
+                <button
+                  onClick={() => setCurrentView("home")}
+                  className="hover:text-foreground transition-colors"
+                >
+                  Home
                 </button>
               </li>
               <li>
-                <button className="hover:text-foreground transition-colors">
+                <button
+                  onClick={() => setCurrentView("events")}
+                  className="hover:text-foreground transition-colors"
+                >
                   Browse Events
                 </button>
               </li>
               <li>
-                <button className="hover:text-foreground transition-colors">
+                <button
+                  onClick={() => setCurrentView(session ? "events" : "auth")}
+                  className="hover:text-foreground transition-colors"
+                >
                   Create Event
                 </button>
               </li>
               <li>
-                <button className="hover:text-foreground transition-colors">
-                  Privacy Policy
+                <button
+                  onClick={() => setCurrentView("contact")}
+                  className="hover:text-foreground transition-colors"
+                >
+                  Contact Us
                 </button>
               </li>
             </ul>

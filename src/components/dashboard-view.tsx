@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useAppStore } from "@/store/app-store";
 import { Button } from "@/components/ui/button";
@@ -43,14 +43,10 @@ export function DashboardView() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchUserEvents();
-  }, [session]);
-
-  const fetchUserEvents = async () => {
+  const fetchUserEvents = useCallback(async () => {
     if (!session?.user) return;
     try {
-      const userId = (session.user as { id: string }).id;
+      const userId = session.user.id;
       const response = await fetch(`/api/events?userId=${userId}`);
       const data = await response.json();
       setEvents(data.events || []);
@@ -59,7 +55,11 @@ export function DashboardView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session]);
+
+  useEffect(() => {
+    fetchUserEvents();
+  }, [fetchUserEvents]);
 
   const upcomingEvents = events.filter(
     (e) => new Date(e.date) >= new Date()
