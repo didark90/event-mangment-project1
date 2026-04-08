@@ -120,12 +120,8 @@ export function HomeView() {
           preload="auto"
         >
           <source
-            src="https://assets.mixkit.co/videos/4883/4883-720.mp4"
+            src="https://aigc-files.bigmodel.cn/api/cogvideo/2d6fb47e-3387-11f1-ab67-2af25a00ba21_0.mp4"
             type="video/mp4"
-          />
-          <source
-            src="https://assets.mixkit.co/videos/4883/4883-720.mp4"
-            type="video/webm"
           />
         </video>
 
@@ -288,7 +284,7 @@ export function HomeView() {
           preload="auto"
         >
           <source
-            src="https://assets.mixkit.co/videos/34491/34491-720.mp4"
+            src="https://aigc-files.bigmodel.cn/api/cogvideo/62395e26-3387-11f1-ab67-2af25a00ba21_0.mp4"
             type="video/mp4"
           />
         </video>
@@ -333,7 +329,7 @@ export function HomeView() {
           preload="auto"
         >
           <source
-            src="https://assets.mixkit.co/videos/4880/4880-720.mp4"
+            src="https://aigc-files.bigmodel.cn/api/cogvideo/6b3324f8-3387-11f1-9fd6-06393149dd5d_0.mp4"
             type="video/mp4"
           />
         </video>
