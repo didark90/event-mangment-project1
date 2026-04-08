@@ -1,39 +1,32 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-// GET /api/events - List all events (public) or user's events (authenticated)
-export async function GET(request: NextRequest) {
+// GET /api/events — List all events (public), optional ?category= filter
+export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
     const category = searchParams.get("category");
 
-    const where: Record<string, unknown> = {};
-
-    if (userId) {
-      where.userId = userId;
-    }
-
-    if (category && category !== "all") {
-      where.category = category;
-    }
-
     const events = await db.event.findMany({
-      where,
+      where: category ? { category } : undefined,
       include: {
         user: {
-          select: { id: true, name: true, email: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
         },
       },
       orderBy: { date: "asc" },
     });
 
-    return NextResponse.json({ events }, { status: 200 });
+    return NextResponse.json(events);
   } catch (error) {
-    console.error("Get events error:", error);
+    console.error("Fetch events error:", error);
     return NextResponse.json(
       { error: "Failed to fetch events" },
       { status: 500 }
@@ -41,44 +34,73 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/events - Create a new event
-export async function POST(request: NextRequest) {
+// POST /api/events — Create a new event (auth required)
+export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
     }
 
     const body = await request.json();
     const { title, description, date, location, category } = body;
 
-    if (!title || !description || !date || !location) {
+    // Validate required fields
+    if (!title || typeof title !== "string" || title.trim().length === 0) {
       return NextResponse.json(
-        { error: "Title, description, date, and location are required" },
+        { error: "Title is required" },
         { status: 400 }
       );
     }
 
-    const userId = session.user.id;
+    if (!description || typeof description !== "string" || description.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Description is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!date) {
+      return NextResponse.json(
+        { error: "Date is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!location || typeof location !== "string" || location.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Location is required" },
+        { status: 400 }
+      );
+    }
 
     const event = await db.event.create({
       data: {
-        title,
-        description,
+        title: title.trim(),
+        description: description.trim(),
         date: new Date(date),
-        location,
-        category: category || "general",
-        userId,
+        location: location.trim(),
+        category: category?.trim() || "general",
+        status: "upcoming",
+        userId: session.user.id,
       },
       include: {
         user: {
-          select: { id: true, name: true, email: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
         },
       },
     });
 
-    return NextResponse.json({ event }, { status: 201 });
+    return NextResponse.json(event, { status: 201 });
   } catch (error) {
     console.error("Create event error:", error);
     return NextResponse.json(

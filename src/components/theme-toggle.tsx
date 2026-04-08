@@ -1,36 +1,46 @@
 "use client";
 
 import { useTheme } from "next-themes";
+import { useSyncExternalStore } from "react";
+import { Sun, Moon, Monitor } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun } from "lucide-react";
+
+const emptySubscribe = () => () => {};
 
 export function ThemeToggle() {
-  const { setTheme, resolvedTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
-  const isDark = resolvedTheme === "dark";
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" className="size-9">
+        <Sun className="size-4" />
+        <span className="sr-only">Toggle theme</span>
+      </Button>
+    );
+  }
+
+  const cycleTheme = () => {
+    if (theme === "light") {
+      setTheme("dark");
+    } else if (theme === "dark") {
+      setTheme("system");
+    } else {
+      setTheme("light");
+    }
+  };
 
   return (
     <Button
       variant="ghost"
       size="icon"
-      className="h-9 w-9 relative overflow-hidden"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
+      className="size-9"
+      onClick={cycleTheme}
+      aria-label={`Current theme: ${theme}. Click to switch.`}
     >
-      <Sun
-        className={`h-[1.2rem] w-[1.2rem] transition-all duration-300 ${
-          isDark
-            ? "rotate-90 scale-0 opacity-0"
-            : "rotate-0 scale-100 opacity-100"
-        }`}
-      />
-      <Moon
-        className={`h-[1.2rem] w-[1.2rem] transition-all duration-300 ${
-          isDark
-            ? "rotate-0 scale-100 opacity-100"
-            : "-rotate-90 scale-0 opacity-0"
-        }`}
-      />
+      {theme === "light" && <Sun className="size-4" />}
+      {theme === "dark" && <Moon className="size-4" />}
+      {theme === "system" && <Monitor className="size-4" />}
       <span className="sr-only">Toggle theme</span>
     </Button>
   );

@@ -1,38 +1,61 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { name, email, subject, message } = body;
 
-    if (!name || !email || !subject || !message) {
+    // Validate name
+    if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json(
-        { error: "All fields are required" },
+        { error: "Name is required" },
         { status: 400 }
       );
     }
 
+    // Validate email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!email || typeof email !== "string" || !emailRegex.test(email)) {
       return NextResponse.json(
-        { error: "Please enter a valid email address" },
+        { error: "A valid email address is required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate subject
+    if (!subject || typeof subject !== "string" || subject.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Subject is required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate message
+    if (!message || typeof message !== "string" || message.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Message is required" },
         { status: 400 }
       );
     }
 
     const contactMessage = await db.contactMessage.create({
-      data: { name, email, subject, message },
+      data: {
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        subject: subject.trim(),
+        message: message.trim(),
+      },
     });
 
     return NextResponse.json(
       {
-        message: "Your message has been sent successfully! We'll get back to you soon.",
-        contactMessage: {
-          id: contactMessage.id,
-          name: contactMessage.name,
-          subject: contactMessage.subject,
-        },
+        id: contactMessage.id,
+        name: contactMessage.name,
+        email: contactMessage.email,
+        subject: contactMessage.subject,
+        message: contactMessage.message,
+        createdAt: contactMessage.createdAt,
       },
       { status: 201 }
     );
@@ -40,22 +63,6 @@ export async function POST(request: NextRequest) {
     console.error("Contact form error:", error);
     return NextResponse.json(
       { error: "Failed to send message. Please try again." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET() {
-  try {
-    const messages = await db.contactMessage.findMany({
-      orderBy: { createdAt: "desc" },
-    });
-
-    return NextResponse.json({ messages }, { status: 200 });
-  } catch (error) {
-    console.error("Get contact messages error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch messages" },
       { status: 500 }
     );
   }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useSession, SessionProvider } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { useEffect } from "react";
 import { useAppStore } from "@/store/app-store";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
@@ -9,22 +10,22 @@ import { AuthView } from "@/components/auth-view";
 import { DashboardView } from "@/components/dashboard-view";
 import { EventsView } from "@/components/events-view";
 import { ContactView } from "@/components/contact-view";
-import { useEffect } from "react";
 
 function AppContent() {
-  const { currentView, setSession } = useAppStore();
   const { data: session, status } = useSession();
+  const { currentView, setCurrentView, setSession } = useAppStore();
 
+  // Sync session to zustand store
   useEffect(() => {
     setSession(session);
   }, [session, setSession]);
 
-  // Redirect to login if accessing protected routes
+  // Redirect to auth if trying to access dashboard without session
   useEffect(() => {
     if (currentView === "dashboard" && !session && status !== "loading") {
-      useAppStore.getState().setCurrentView("auth");
+      setCurrentView("auth");
     }
-  }, [currentView, session, status]);
+  }, [currentView, session, status, setCurrentView]);
 
   const renderView = () => {
     switch (currentView) {
@@ -44,18 +45,14 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="flex min-h-screen flex-col">
       <Navbar />
-      <main className="flex-1">{renderView()}</main>
+      <main className="flex flex-1 flex-col">{renderView()}</main>
       <Footer />
     </div>
   );
 }
 
 export default function Home() {
-  return (
-    <SessionProvider>
-      <AppContent />
-    </SessionProvider>
-  );
+  return <AppContent />;
 }

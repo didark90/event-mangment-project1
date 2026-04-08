@@ -1,20 +1,27 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { useAppStore } from "@/store/app-store";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Search,
+  Plus,
+  MapPin,
+  Calendar,
+  User,
+  Eye,
+  Pencil,
+  Trash2,
+  Loader2,
+  CalendarX,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -24,40 +31,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  CalendarDays,
-  PlusCircle,
-  MapPin,
-  Clock,
-  Search,
-  Pencil,
-  Trash2,
-  Filter,
-  Loader2,
-  Eye,
-} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
-import { motion, AnimatePresence } from "framer-motion";
+import { useAppStore } from "@/store/app-store";
 
-interface Event {
+// ─── Types ───────────────────────────────────────────────────────────
+
+interface EventUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+interface EventData {
   id: string;
   title: string;
   description: string;
@@ -65,653 +57,921 @@ interface Event {
   location: string;
   category: string;
   status: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-  };
+  userId: string;
   createdAt: string;
+  updatedAt: string;
+  user: EventUser;
 }
 
-interface EventFormData {
-  title: string;
-  description: string;
-  date: string;
-  location: string;
-  category: string;
-}
+// ─── Constants ───────────────────────────────────────────────────────
 
-const categories = [
-  "conference",
-  "workshop",
-  "meetup",
-  "seminar",
-  "social",
-  "sports",
-  "music",
-  "tech",
-  "general",
-];
+const CATEGORIES = [
+  "All",
+  "Conference",
+  "Workshop",
+  "Meetup",
+  "Webinar",
+  "Social",
+  "Concert",
+] as const;
 
-const emptyFormData: EventFormData = {
-  title: "",
-  description: "",
-  date: "",
-  location: "",
-  category: "general",
+const EVENT_CATEGORIES = CATEGORIES.filter((c) => c !== "All") as string[];
+
+const STATUS_COLORS: Record<string, string> = {
+  upcoming: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  ongoing: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+  completed: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-gray-200 dark:border-gray-700",
+  cancelled: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-red-200 dark:border-red-800",
 };
+
+const CATEGORY_COLORS: Record<string, string> = {
+  conference: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  workshop: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  meetup: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
+  webinar: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+  social: "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300",
+  concert: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
+  general: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+function formatEventDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatDateForInput(dateStr: string): string {
+  const d = new Date(dateStr);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function truncate(str: string, length: number): string {
+  if (str.length <= length) return str;
+  return str.slice(0, length) + "...";
+}
+
+// ─── Loading Skeletons ───────────────────────────────────────────────
+
+function EventsGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Card key={i}>
+          <CardContent className="p-4 sm:p-6">
+            <div className="mb-3 flex items-center justify-between">
+              <Skeleton className="h-5 w-20 rounded-full" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+            <Skeleton className="mb-2 h-6 w-3/4" />
+            <Skeleton className="mb-1 h-4 w-full" />
+            <Skeleton className="mb-3 h-4 w-2/3" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-4 w-1/3" />
+            </div>
+            <Separator className="my-3" />
+            <Skeleton className="h-10 w-full rounded-lg" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ─── Empty State ─────────────────────────────────────────────────────
+
+function EmptyState({ hasSearch }: { hasSearch: boolean }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center justify-center py-16 text-center"
+    >
+      <div className="mb-4 flex size-16 items-center justify-center rounded-2xl bg-muted">
+        {hasSearch ? (
+          <Search className="size-8 text-muted-foreground" />
+        ) : (
+          <CalendarX className="size-8 text-muted-foreground" />
+        )}
+      </div>
+      <h3 className="text-lg font-semibold text-foreground">
+        {hasSearch ? "No events found" : "No events yet"}
+      </h3>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+        {hasSearch
+          ? "Try adjusting your search or filter to find what you're looking for."
+          : "Be the first to create an event and start building your community."}
+      </p>
+    </motion.div>
+  );
+}
+
+// ─── Event Card ──────────────────────────────────────────────────────
+
+function EventCard({
+  event,
+  onView,
+  isOwner,
+}: {
+  event: EventData;
+  onView: (event: EventData) => void;
+  isOwner: boolean;
+}) {
+  const categoryColor =
+    CATEGORY_COLORS[event.category?.toLowerCase()] ||
+    CATEGORY_COLORS.general;
+
+  const statusColor = STATUS_COLORS[event.status?.toLowerCase()] || STATUS_COLORS.upcoming;
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.3 }}
+    >
+      <Card className="group h-full transition-shadow hover:shadow-md">
+        <CardContent className="flex flex-col p-4 sm:p-6">
+          {/* Badges */}
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <Badge
+              variant="secondary"
+              className={`text-[11px] ${categoryColor} border-0`}
+            >
+              {event.category || "General"}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={`text-[11px] capitalize ${statusColor}`}
+            >
+              {event.status || "upcoming"}
+            </Badge>
+          </div>
+
+          {/* Title */}
+          <h3 className="mb-1 text-base font-semibold leading-snug text-foreground line-clamp-2">
+            {event.title}
+          </h3>
+
+          {/* Description */}
+          <p className="mb-3 text-sm text-muted-foreground line-clamp-2">
+            {truncate(event.description, 100)}
+          </p>
+
+          {/* Details */}
+          <div className="mb-3 space-y-1.5 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Calendar className="size-3.5 shrink-0 text-muted-foreground/70" />
+              <span className="truncate">{formatEventDate(event.date)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <MapPin className="size-3.5 shrink-0 text-muted-foreground/70" />
+              <span className="truncate">{event.location}</span>
+            </div>
+            {event.user?.name && (
+              <div className="flex items-center gap-2">
+                <User className="size-3.5 shrink-0 text-muted-foreground/70" />
+                <span className="truncate">{event.user.name}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Owner badge */}
+          {isOwner && (
+            <Badge variant="outline" className="mb-3 w-fit text-[10px] text-emerald-600 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800">
+              Your Event
+            </Badge>
+          )}
+
+          {/* Action */}
+          <div className="mt-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => onView(event)}
+            >
+              <Eye className="mr-2 size-3.5" />
+              View Details
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+// ─── Create Event Dialog ─────────────────────────────────────────────
+
+function CreateEventDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    date: "",
+    location: "",
+    category: "Conference",
+  });
+
+  const resetForm = () => {
+    setForm({
+      title: "",
+      description: "",
+      date: "",
+      location: "",
+      category: "Conference",
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+
+    if (!form.title.trim() || !form.description.trim() || !form.date || !form.location.trim()) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to create event");
+      }
+
+      toast({
+        title: "Event created!",
+        description: "Your event has been created successfully.",
+      });
+      resetForm();
+      onOpenChange(false);
+      onSuccess();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to create event",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Create Event</DialogTitle>
+          <DialogDescription>
+            Fill in the details below to create a new event.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="create-title">Title</Label>
+            <Input
+              id="create-title"
+              placeholder="Enter event title"
+              className="h-12 rounded-lg"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="create-description">Description</Label>
+            <textarea
+              id="create-description"
+              placeholder="Describe your event"
+              className="flex h-28 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="create-date">Date & Time</Label>
+            <Input
+              id="create-date"
+              type="datetime-local"
+              className="h-12 rounded-lg"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="create-location">Location</Label>
+            <Input
+              id="create-location"
+              placeholder="Enter event location"
+              className="h-12 rounded-lg"
+              value={form.location}
+              onChange={(e) => setForm({ ...form, location: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select
+              value={form.category}
+              onValueChange={(v) => setForm({ ...form, category: v })}
+            >
+              <SelectTrigger className="h-12 rounded-lg">
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {EVENT_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { resetForm(); onOpenChange(false); }}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Create Event
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Edit Event Dialog ───────────────────────────────────────────────
+
+function EditEventDialog({
+  event,
+  open,
+  onOpenChange,
+  onSuccess,
+}: {
+  event: EventData | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    date: "",
+    location: "",
+    category: "",
+    status: "upcoming",
+  });
+
+  useEffect(() => {
+    if (event) {
+      setForm({
+        title: event.title || "",
+        description: event.description || "",
+        date: formatDateForInput(event.date),
+        location: event.location || "",
+        category: event.category || "Conference",
+        status: event.status || "upcoming",
+      });
+    }
+  }, [event]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting || !event) return;
+
+    if (!form.title.trim() || !form.description.trim() || !form.date || !form.location.trim()) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to update event");
+      }
+
+      toast({
+        title: "Event updated!",
+        description: "Your event has been updated successfully.",
+      });
+      onOpenChange(false);
+      onSuccess();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to update event",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Event</DialogTitle>
+          <DialogDescription>
+            Update the details of your event.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-title">Title</Label>
+            <Input
+              id="edit-title"
+              placeholder="Enter event title"
+              className="h-12 rounded-lg"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-description">Description</Label>
+            <textarea
+              id="edit-description"
+              placeholder="Describe your event"
+              className="flex h-28 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-date">Date & Time</Label>
+            <Input
+              id="edit-date"
+              type="datetime-local"
+              className="h-12 rounded-lg"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-location">Location</Label>
+            <Input
+              id="edit-location"
+              placeholder="Enter event location"
+              className="h-12 rounded-lg"
+              value={form.location}
+              onChange={(e) => setForm({ ...form, location: e.target.value })}
+              required
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select
+                value={form.category}
+                onValueChange={(v) => setForm({ ...form, category: v })}
+              >
+                <SelectTrigger className="h-12 rounded-lg">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EVENT_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select
+                value={form.status}
+                onValueChange={(v) => setForm({ ...form, status: v })}
+              >
+                <SelectTrigger className="h-12 rounded-lg">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upcoming">Upcoming</SelectItem>
+                  <SelectItem value="ongoing">Ongoing</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── View Event Dialog ───────────────────────────────────────────────
+
+function ViewEventDialog({
+  event,
+  open,
+  onOpenChange,
+  onEdit,
+  onDelete,
+  isOwner,
+}: {
+  event: EventData | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onEdit: (event: EventData) => void;
+  onDelete: (id: string) => void;
+  isOwner: boolean;
+}) {
+  if (!event) return null;
+
+  const statusColor = STATUS_COLORS[event.status?.toLowerCase()] || STATUS_COLORS.upcoming;
+  const categoryColor =
+    CATEGORY_COLORS[event.category?.toLowerCase()] ||
+    CATEGORY_COLORS.general;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className={`text-xs ${categoryColor} border-0`}>
+              {event.category || "General"}
+            </Badge>
+            <Badge variant="outline" className={`text-xs capitalize ${statusColor}`}>
+              {event.status || "upcoming"}
+            </Badge>
+          </div>
+          <DialogTitle className="text-xl">{event.title}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Event details for {event.title}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Description */}
+          <div>
+            <h4 className="mb-1 text-sm font-medium text-foreground">Description</h4>
+            <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+              {event.description}
+            </p>
+          </div>
+
+          <Separator />
+
+          {/* Details */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
+                <Calendar className="size-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Date & Time</p>
+                <p className="text-sm font-medium text-foreground">
+                  {formatEventDate(event.date)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
+                <MapPin className="size-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Location</p>
+                <p className="text-sm font-medium text-foreground">
+                  {event.location}
+                </p>
+              </div>
+            </div>
+            {event.user?.name && (
+              <div className="flex items-center gap-3">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
+                  <User className="size-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Organizer</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {event.user.name}
+                    {event.user.email && (
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        ({event.user.email})
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Owner actions */}
+        {isOwner && (
+          <>
+            <Separator />
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onOpenChange(false);
+                  onEdit(event);
+                }}
+              >
+                <Pencil className="mr-2 size-4" />
+                Edit
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to delete this event? This action cannot be undone.")) {
+                    onOpenChange(false);
+                    onDelete(event.id);
+                  }
+                }}
+              >
+                <Trash2 className="mr-2 size-4" />
+                Delete
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Main Events View ────────────────────────────────────────────────
 
 export function EventsView() {
   const { data: session } = useSession();
-  const { setCurrentView } = useAppStore();
   const { toast } = useToast();
+  const { setCurrentView } = useAppStore();
 
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [activeCategory, setActiveCategory] = useState("All");
 
-  // Dialog states
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showViewDialog, setShowViewDialog] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [formData, setFormData] = useState<EventFormData>(emptyFormData);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Dialogs
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editEvent, setEditEvent] = useState<EventData | null>(null);
+  const [viewEvent, setViewEvent] = useState<EventData | null>(null);
 
   const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (categoryFilter !== "all") {
-        params.set("category", categoryFilter);
+      if (activeCategory !== "All") {
+        params.set("category", activeCategory);
       }
-      if (session?.user) {
-        params.set("userId", session.user.id);
+      const res = await fetch(`/api/events?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error("Failed to fetch events");
       }
-      const response = await fetch(`/api/events?${params.toString()}`);
-      const data = await response.json();
-      setEvents(data.events || []);
-    } catch (error) {
-      console.error("Failed to fetch events:", error);
+      const data = await res.json();
+      setEvents(data);
+    } catch (err) {
+      console.error("Failed to fetch events:", err);
       toast({
-        variant: "destructive",
         title: "Error",
-        description: "Failed to fetch events",
+        description: "Failed to load events. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
-  }, [categoryFilter, session, toast]);
+  }, [activeCategory, toast]);
 
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
 
-  const filteredEvents = events.filter(
-    (event) =>
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleCreateEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!session?.user) {
-      setCurrentView("auth");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const response = await fetch("/api/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: "Event Created!",
-          description: `"${formData.title}" has been created successfully.`,
-        });
-        setShowCreateDialog(false);
-        setFormData(emptyFormData);
-        fetchEvents();
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Failed to Create",
-          description: data.error || "Something went wrong",
-        });
-      }
-    } catch {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to create event",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleEditEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedEvent) return;
-
-    setIsSubmitting(true);
-    try {
-      const response = await fetch(`/api/events/${selectedEvent.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: "Event Updated!",
-          description: `"${formData.title}" has been updated successfully.`,
-        });
-        setShowEditDialog(false);
-        setSelectedEvent(null);
-        setFormData(emptyFormData);
-        fetchEvents();
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Failed to Update",
-          description: data.error || "Something went wrong",
-        });
-      }
-    } catch {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to update event",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteEvent = async () => {
-    if (!selectedEvent) return;
-
-    setIsDeleting(true);
-    try {
-      const response = await fetch(`/api/events/${selectedEvent.id}`, {
-        method: "DELETE",
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: "Event Deleted",
-          description: `"${selectedEvent.title}" has been deleted.`,
-        });
-        setShowDeleteDialog(false);
-        setSelectedEvent(null);
-        fetchEvents();
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Failed to Delete",
-          description: data.error || "Something went wrong",
-        });
-      }
-    } catch {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to delete event",
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const openEditDialog = (event: Event) => {
-    setSelectedEvent(event);
-    setFormData({
-      title: event.title,
-      description: event.description,
-      date: event.date ? event.date.split("T")[0] : "",
-      location: event.location,
-      category: event.category,
-    });
-    setShowEditDialog(true);
-  };
-
-  const openViewDialog = (event: Event) => {
-    setSelectedEvent(event);
-    setShowViewDialog(true);
-  };
-
-  const openDeleteDialog = (event: Event) => {
-    setSelectedEvent(event);
-    setShowDeleteDialog(true);
-  };
-
-  const isOwner = (event: Event) => {
-    if (!session?.user) return false;
-    return event.user.id === session.user.id;
-  };
-
-  const EventForm = ({
-    onSubmit,
-    submitLabel,
-    isLoading,
-  }: {
-    onSubmit: (e: React.FormEvent) => void;
-    submitLabel: string;
-    isLoading: boolean;
-  }) => (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="event-title">Event Title *</Label>
-        <Input
-          id="event-title"
-          value={formData.title}
-          onChange={(e) =>
-            setFormData({ ...formData, title: e.target.value })
-          }
-          placeholder="Enter event title"
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="event-desc">Description *</Label>
-        <Textarea
-          id="event-desc"
-          value={formData.description}
-          onChange={(e) =>
-            setFormData({ ...formData, description: e.target.value })
-          }
-          placeholder="Describe your event..."
-          rows={3}
-          required
-        />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="event-date">Date & Time *</Label>
-          <Input
-            id="event-date"
-            type="datetime-local"
-            value={formData.date}
-            onChange={(e) =>
-              setFormData({ ...formData, date: e.target.value })
-            }
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="event-category">Category</Label>
-          <Select
-            value={formData.category}
-            onValueChange={(val) =>
-              setFormData({ ...formData, category: val })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select category" />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map((cat) => (
-                <SelectItem key={cat} value={cat}>
-                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="event-location">Location *</Label>
-        <Input
-          id="event-location"
-          value={formData.location}
-          onChange={(e) =>
-            setFormData({ ...formData, location: e.target.value })
-          }
-          placeholder="Event venue or address"
-          required
-        />
-      </div>
-      <DialogFooter>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setShowCreateDialog(false);
-            setShowEditDialog(false);
-            setFormData(emptyFormData);
-            setSelectedEvent(null);
-          }}
-          disabled={isLoading}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            submitLabel
-          )}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-
-  const getStatusBadge = (date: string) => {
-    const eventDate = new Date(date);
-    const now = new Date();
-    if (eventDate < now) {
-      return (
-        <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-          Past
-        </Badge>
-      );
-    }
-    const diffDays = Math.ceil(
-      (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  // Filter by search
+  const filteredEvents = useMemo(() => {
+    if (!searchQuery.trim()) return events;
+    const q = searchQuery.toLowerCase();
+    return events.filter((e) =>
+      e.title.toLowerCase().includes(q) ||
+      e.description.toLowerCase().includes(q) ||
+      e.location.toLowerCase().includes(q)
     );
-    if (diffDays <= 7) {
-      return (
-        <Badge variant="secondary" className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
-          Soon
-        </Badge>
-      );
+  }, [events, searchQuery]);
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete event");
+      }
+      toast({
+        title: "Event deleted",
+        description: "The event has been deleted successfully.",
+      });
+      fetchEvents();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to delete event",
+        variant: "destructive",
+      });
     }
-    return (
-      <Badge variant="secondary" className="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
-        Upcoming
-      </Badge>
-    );
   };
+
+  const isAuthenticated = !!session?.user;
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="flex flex-1 flex-col">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Events</h1>
-          <p className="text-muted-foreground mt-1">
-            {session?.user
-              ? "Manage your events or discover new ones"
-              : "Browse upcoming events in your area"}
-          </p>
-        </div>
-        {session?.user && (
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create Event
-          </Button>
-        )}
-      </div>
-
-      {/* Search & Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search events by title, location, or description..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-full sm:w-44">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filter" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat} value={cat}>
-                {cat.charAt(0).toUpperCase() + cat.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Events Grid */}
-      {loading ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-64 w-full rounded-xl" />
-          ))}
-        </div>
-      ) : filteredEvents.length === 0 ? (
-        <div className="text-center py-16">
-          <CalendarDays className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-          <h3 className="text-lg font-semibold mb-2">No events found</h3>
-          <p className="text-muted-foreground mb-4">
-            {searchQuery || categoryFilter !== "all"
-              ? "Try adjusting your search or filters"
-              : session?.user
-              ? "Create your first event to get started!"
-              : "Sign in to create and manage events"}
-          </p>
-          {session?.user ? (
-            <Button onClick={() => setShowCreateDialog(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create Event
+      <section className="border-b bg-background">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              Events
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Discover and join events happening in your community.
+            </p>
+          </div>
+          {isAuthenticated ? (
+            <Button onClick={() => setCreateOpen(true)} className="shrink-0">
+              <Plus className="size-4" />
+              <span className="hidden sm:inline">Create Event</span>
             </Button>
           ) : (
-            <Button onClick={() => setCurrentView("auth")}>
-              Sign In to Create Events
+            <Button
+              variant="outline"
+              onClick={() => setCurrentView("auth")}
+              className="shrink-0"
+            >
+              Sign in to Create
             </Button>
           )}
         </div>
-      ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <AnimatePresence mode="popLayout">
-            {filteredEvents.map((event) => (
-              <motion.div
-                key={event.id}
-                layout
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Card className="h-full flex flex-col hover:shadow-lg transition-shadow group">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          {getStatusBadge(event.date)}
-                          <Badge
-                            variant="outline"
-                            className="capitalize text-xs"
-                          >
-                            {event.category}
-                          </Badge>
-                        </div>
-                        <CardTitle className="text-base truncate">
-                          {event.title}
-                        </CardTitle>
-                      </div>
-                    </div>
-                    <CardDescription className="line-clamp-2 text-xs">
-                      {event.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex-1 flex flex-col justify-between pt-0">
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4 flex-shrink-0" />
-                        <span>
-                          {format(new Date(event.date), "MMM dd, yyyy 'at' h:mm a")}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4 flex-shrink-0" />
-                        <span className="truncate">{event.location}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => openViewDialog(event)}
-                      >
-                        <Eye className="mr-1 h-3.5 w-3.5" />
-                        View
-                      </Button>
-                      {isOwner(event) && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openEditDialog(event)}
-                            className="flex-shrink-0"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openDeleteDialog(event)}
-                            className="flex-shrink-0 text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+      </section>
+
+      {/* Search & Filter */}
+      <section className="border-b bg-muted/30">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          {/* Search */}
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search events by title, description, or location..."
+              className="h-12 rounded-lg pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          {/* Category pills */}
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((cat) => {
+              const isActive = activeCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`
+                    inline-flex items-center rounded-full px-3.5 py-1.5 text-sm font-medium
+                    transition-colors focus-visible:outline-none focus-visible:ring-2
+                    focus-visible:ring-ring focus-visible:ring-offset-2
+                    ${
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                    }
+                  `}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      )}
+      </section>
 
-      {/* Create Event Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Create New Event</DialogTitle>
-            <DialogDescription>
-              Fill in the details to create a new event
-            </DialogDescription>
-          </DialogHeader>
-          <EventForm
-            onSubmit={handleCreateEvent}
-            submitLabel="Create Event"
-            isLoading={isSubmitting}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Events Grid */}
+      <section className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        {loading ? (
+          <EventsGridSkeleton />
+        ) : filteredEvents.length === 0 ? (
+          <EmptyState hasSearch={searchQuery.length > 0 || activeCategory !== "All"} />
+        ) : (
+          <motion.div
+            layout
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            <AnimatePresence mode="popLayout">
+              {filteredEvents.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  onView={setViewEvent}
+                  isOwner={isAuthenticated && session?.user?.id === event.userId}
+                />
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </section>
 
-      {/* Edit Event Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit Event</DialogTitle>
-            <DialogDescription>
-              Update the details of your event
-            </DialogDescription>
-          </DialogHeader>
-          <EventForm
-            onSubmit={handleEditEvent}
-            submitLabel="Save Changes"
-            isLoading={isSubmitting}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Create Dialog */}
+      <CreateEventDialog
+        open={createOpen}
+        onOpenChange={(v) => {
+          if (!isAuthenticated) {
+            setCurrentView("auth");
+            toast({
+              title: "Sign in required",
+              description: "Please sign in to create events.",
+            });
+            return;
+          }
+          setCreateOpen(v);
+        }}
+        onSuccess={fetchEvents}
+      />
 
-      {/* View Event Dialog */}
-      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="sm:max-w-lg">
-          {selectedEvent && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selectedEvent.title}</DialogTitle>
-                <DialogDescription>
-                  Created by {selectedEvent.user.name}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  {getStatusBadge(selectedEvent.date)}
-                  <Badge variant="outline" className="capitalize">
-                    {selectedEvent.category}
-                  </Badge>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {selectedEvent.description}
-                  </p>
-                </div>
-                <div className="space-y-2 pt-2 border-t">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span>
-                      {format(
-                        new Date(selectedEvent.date),
-                        "EEEE, MMMM dd, yyyy 'at' h:mm a"
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedEvent.location}</span>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Edit Dialog */}
+      <EditEventDialog
+        event={editEvent}
+        open={!!editEvent}
+        onOpenChange={(v) => { if (!v) setEditEvent(null); }}
+        onSuccess={fetchEvents}
+      />
 
-      {/* Delete Confirmation */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Event</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &quot;{selectedEvent?.title}&quot;?
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => setSelectedEvent(null)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteEvent}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* View Dialog */}
+      <ViewEventDialog
+        event={viewEvent}
+        open={!!viewEvent}
+        onOpenChange={(v) => { if (!v) setViewEvent(null); }}
+        onEdit={setEditEvent}
+        onDelete={handleDelete}
+        isOwner={!!viewEvent && isAuthenticated && session?.user?.id === viewEvent?.userId}
+      />
     </div>
   );
 }

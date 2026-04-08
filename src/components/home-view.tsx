@@ -1,208 +1,261 @@
 "use client";
 
-import { useAppStore } from "@/store/app-store";
+import { useRef } from "react";
+import { motion, useInView } from "framer-motion";
 import { useSession } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
-  CalendarDays,
-  MapPin,
+  CalendarPlus,
+  LayoutDashboard,
+  Bell,
   Users,
-  ArrowRight,
-  Sparkles,
-  Shield,
-  Zap,
   BarChart3,
+  ShieldCheck,
+  CalendarDays,
+  TrendingUp,
+  UserCheck,
+  Star,
 } from "lucide-react";
-import Image from "next/image";
-import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { useAppStore } from "@/store/app-store";
 
+/* ------------------------------------------------------------------ */
+/*  Animation helpers                                                  */
+/* ------------------------------------------------------------------ */
+const fadeUp = {
+  hidden: { opacity: 0, y: 30 },
+  visible: (i: number = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.12, duration: 0.55, ease: "easeOut" },
+  }),
+};
+
+function AnimatedSection({ children, className }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+
+  return (
+    <motion.div
+      ref={ref}
+      initial="hidden"
+      animate={inView ? "visible" : "hidden"}
+      variants={fadeUp}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Stats                                                              */
+/* ------------------------------------------------------------------ */
+const stats = [
+  { label: "Events Created", value: "500+", icon: CalendarDays, color: "text-emerald-500" },
+  { label: "Active Users", value: "1,000+", icon: UserCheck, color: "text-emerald-500" },
+  { label: "Categories", value: "50+", icon: TrendingUp, color: "text-emerald-500" },
+  { label: "Satisfaction", value: "99%", icon: Star, color: "text-emerald-500" },
+];
+
+/* ------------------------------------------------------------------ */
+/*  Features                                                           */
+/* ------------------------------------------------------------------ */
 const features = [
   {
-    icon: <CalendarDays className="h-8 w-8" />,
-    title: "Create Events",
+    icon: CalendarPlus,
+    title: "Event Creation",
     description:
-      "Easily create and manage events with all the details your attendees need.",
+      "Create stunning events in minutes with our intuitive builder. Customize every detail from date to description.",
   },
   {
-    icon: <Users className="h-8 w-8" />,
-    title: "Community",
+    icon: LayoutDashboard,
+    title: "Easy Management",
     description:
-      "Connect with event organizers and attendees in your local community.",
+      "Manage all your events from a single dashboard. Track attendees, update details, and monitor progress.",
   },
   {
-    icon: <MapPin className="h-8 w-8" />,
-    title: "Discover",
+    icon: Bell,
+    title: "Real-time Updates",
     description:
-      "Find exciting events happening near you across various categories.",
+      "Stay informed with instant notifications. Get alerts for new registrations, changes, and reminders.",
   },
   {
-    icon: <BarChart3 className="h-8 w-8" />,
-    title: "Dashboard",
+    icon: Users,
+    title: "Community Hub",
     description:
-      "Track your event performance with detailed analytics and insights.",
+      "Connect with event-goers and organizers. Build meaningful relationships within your community.",
   },
   {
-    icon: <Shield className="h-8 w-8" />,
-    title: "Secure",
+    icon: BarChart3,
+    title: "Analytics",
     description:
-      "Your data is safe with us. Enterprise-grade security for all users.",
+      "Gain insights with powerful analytics. Track attendance, engagement, and revenue in real-time.",
   },
   {
-    icon: <Zap className="h-8 w-8" />,
-    title: "Fast & Reliable",
+    icon: ShieldCheck,
+    title: "Secure Platform",
     description:
-      "Lightning-fast performance ensures your events load in milliseconds.",
+      "Your data is protected with enterprise-grade security. Privacy and safety are our top priorities.",
   },
 ];
 
+/* ------------------------------------------------------------------ */
+/*  HomeView                                                           */
+/* ------------------------------------------------------------------ */
 export function HomeView() {
-  const { setCurrentView } = useAppStore();
   const { data: session } = useSession();
+  const setCurrentView = useAppStore((s) => s.setCurrentView);
 
   return (
     <div className="flex flex-col">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-primary/10">
-        <div className="container mx-auto px-4 py-16 md:py-24">
-          <div className="grid md:grid-cols-2 gap-8 items-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="space-y-6"
+      {/* ===== Hero ===== */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-teal-700">
+        {/* Decorative blobs */}
+        <div className="pointer-events-none absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-white/5 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 -right-32 h-[400px] w-[400px] rounded-full bg-white/5 blur-3xl" />
+
+        <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-8 px-6 py-24 text-center md:py-36">
+          {/* Brand pill */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-sm font-medium text-white backdrop-blur-sm"
+          >
+            <CalendarDays className="size-4" />
+            EventHub
+          </motion.div>
+
+          {/* Heading */}
+          <motion.h1
+            className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl md:text-6xl"
+            variants={fadeUp}
+            custom={1}
+            initial="hidden"
+            animate="visible"
+          >
+            Discover &amp; Create{" "}
+            <span className="bg-gradient-to-r from-white/90 to-white/60 bg-clip-text text-transparent">
+              Amazing Events
+            </span>
+          </motion.h1>
+
+          {/* Subheading */}
+          <motion.p
+            className="max-w-xl text-lg text-emerald-100"
+            variants={fadeUp}
+            custom={2}
+            initial="hidden"
+            animate="visible"
+          >
+            The all-in-one platform to organize, discover, and attend events
+            that bring people together. Start building your community today.
+          </motion.p>
+
+          {/* CTA buttons */}
+          <motion.div
+            className="flex flex-wrap items-center justify-center gap-4"
+            variants={fadeUp}
+            custom={3}
+            initial="hidden"
+            animate="visible"
+          >
+            <Button
+              size="lg"
+              className="h-12 rounded-lg bg-white px-8 font-semibold text-emerald-700 shadow-lg hover:bg-white/90"
+              onClick={() => setCurrentView("events")}
             >
-              <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
-                <Sparkles className="h-4 w-4" />
-                Event Management Made Simple
-              </div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
-                Create & Manage{" "}
-                <span className="text-primary">Amazing Events</span>
-              </h1>
-              <p className="text-lg text-muted-foreground max-w-lg">
-                The all-in-one platform for event organizers. Create, manage, and
-                promote your events with ease. Join thousands of users who trust
-                EventHub.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  size="lg"
-                  className="text-base px-8"
-                  onClick={() =>
-                    setCurrentView(session ? "events" : "auth")
-                  }
-                >
-                  {session ? "My Events" : "Get Started Free"}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="text-base px-8"
-                  onClick={() => setCurrentView("events")}
-                >
-                  Browse Events
-                </Button>
-              </div>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="relative hidden md:block"
+              Explore Events
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-12 rounded-lg border-white/40 bg-transparent px-8 font-semibold text-white hover:bg-white/10 hover:text-white"
+              onClick={() =>
+                setCurrentView(session ? "dashboard" : "auth")
+              }
             >
-              <div className="relative rounded-2xl overflow-hidden shadow-2xl">
-                <Image
-                  src="/hero.png"
-                  alt="Event management platform hero"
-                  width={576}
-                  height={432}
-                  className="w-full h-auto object-cover"
-                  priority
-                />
-              </div>
-            </motion.div>
-          </div>
+              {session ? "Dashboard" : "Get Started"}
+            </Button>
+          </motion.div>
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="border-y bg-muted/30">
-        <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {[
-              { value: "10K+", label: "Events Created" },
-              { value: "5K+", label: "Active Users" },
-              { value: "50+", label: "Categories" },
-              { value: "99.9%", label: "Uptime" },
-            ].map((stat) => (
-              <div key={stat.label}>
-                <p className="text-2xl md:text-3xl font-bold text-primary">
-                  {stat.value}
-                </p>
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="container mx-auto px-4 py-16 md:py-24">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-            Everything You Need
-          </h2>
-          <p className="text-muted-foreground mt-3 max-w-2xl mx-auto">
-            Our platform provides all the tools you need to create successful
-            events, from planning to execution.
-          </p>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
-            >
-              <Card className="h-full hover:shadow-lg transition-shadow group cursor-default">
-                <CardContent className="p-6 space-y-4">
-                  <div className="text-primary group-hover:scale-110 transition-transform duration-200">
-                    {feature.icon}
-                  </div>
-                  <h3 className="text-lg font-semibold">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm">
-                    {feature.description}
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
+      {/* ===== Stats ===== */}
+      <section className="border-b bg-muted/30">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-6 py-12 md:grid-cols-4 md:gap-8">
+          {stats.map((s, i) => (
+            <AnimatedSection key={s.label}>
+              <motion.div
+                custom={i}
+                variants={fadeUp}
+                className="flex flex-col items-center gap-2 text-center"
+              >
+                <s.icon className={`size-8 ${s.color}`} />
+                <span className="text-3xl font-bold tracking-tight">
+                  {s.value}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {s.label}
+                </span>
+              </motion.div>
+            </AnimatedSection>
           ))}
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="bg-primary text-primary-foreground">
-        <div className="container mx-auto px-4 py-16 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+      {/* ===== Features ===== */}
+      <section className="mx-auto w-full max-w-6xl px-6 py-20 md:py-28">
+        <AnimatedSection>
+          <h2 className="mb-3 text-center text-3xl font-bold tracking-tight sm:text-4xl">
+            Why Choose <span className="text-emerald-600">EventHub</span>?
+          </h2>
+          <p className="mx-auto mb-12 max-w-2xl text-center text-muted-foreground">
+            Everything you need to plan, promote, and manage unforgettable
+            events — all in one place.
+          </p>
+        </AnimatedSection>
+
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {features.map((f, i) => (
+            <AnimatedSection key={f.title}>
+              <motion.div
+                custom={i}
+                variants={fadeUp}
+                whileHover={{ y: -4, boxShadow: "0 12px 28px rgba(0,0,0,0.08)" }}
+                className="group flex flex-col gap-4 rounded-xl border bg-card p-6 transition-colors hover:border-emerald-200 dark:hover:border-emerald-800"
+              >
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors group-hover:bg-emerald-600 group-hover:text-white dark:bg-emerald-950 dark:text-emerald-400 dark:group-hover:bg-emerald-600 dark:group-hover:text-white">
+                  <f.icon className="size-6" />
+                </div>
+                <h3 className="text-lg font-semibold">{f.title}</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {f.description}
+                </p>
+              </motion.div>
+            </AnimatedSection>
+          ))}
+        </div>
+      </section>
+
+      {/* ===== CTA ===== */}
+      <section className="bg-gradient-to-br from-emerald-600 to-teal-700">
+        <AnimatedSection className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-20 text-center md:py-24">
+          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Ready to Get Started?
           </h2>
-          <p className="text-primary-foreground/80 max-w-xl mx-auto mb-8">
-            Join EventHub today and start creating unforgettable events. It&apos;s free
-            to get started!
+          <p className="max-w-md text-emerald-100">
+            Join thousands of event organizers and attendees already using
+            EventHub. Create your first event today.
           </p>
           <Button
             size="lg"
-            variant="secondary"
-            className="text-base px-8"
-            onClick={() => setCurrentView(session ? "events" : "auth")}
+            className="mt-2 h-12 rounded-lg bg-white px-8 font-semibold text-emerald-700 shadow-lg hover:bg-white/90"
+            onClick={() => setCurrentView("auth")}
           >
-            {session ? "Go to Dashboard" : "Create Free Account"}
-            <ArrowRight className="ml-2 h-4 w-4" />
+            Sign Up Now
           </Button>
-        </div>
+        </AnimatedSection>
       </section>
     </div>
   );

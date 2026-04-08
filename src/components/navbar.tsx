@@ -1,199 +1,180 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
-import { useAppStore } from "@/store/app-store";
+import { CalendarDays, Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import {
-  CalendarDays,
-  Menu,
-  User,
-  LogOut,
-  LayoutDashboard,
-  PlusCircle,
-  MessageSquare,
-  Home,
-} from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { ViewType } from "@/store/app-store";
+import { useAppStore, type ViewType } from "@/store/app-store";
 
-const navItems: { label: string; view: ViewType; icon: React.ReactNode; authOnly?: boolean }[] = [
-  { label: "Home", view: "home", icon: <Home className="h-4 w-4" /> },
-  { label: "Dashboard", view: "dashboard", icon: <LayoutDashboard className="h-4 w-4" />, authOnly: true },
-  { label: "Events", view: "events", icon: <CalendarDays className="h-4 w-4" /> },
-  { label: "Contact", view: "contact", icon: <MessageSquare className="h-4 w-4" /> },
+const navLinks: { label: string; view: ViewType; authOnly?: boolean }[] = [
+  { label: "Home", view: "home" },
+  { label: "Events", view: "events" },
+  { label: "Dashboard", view: "dashboard", authOnly: true },
+  { label: "Contact", view: "contact" },
 ];
 
 export function Navbar() {
   const { data: session } = useSession();
-  const { currentView, setCurrentView, sidebarOpen, setSidebarOpen } = useAppStore();
+  const { currentView, setCurrentView } = useAppStore();
 
-  const filteredNavItems = navItems.filter(
-    (item) => !item.authOnly || session?.user
+  const visibleLinks = navLinks.filter(
+    (link) => !link.authOnly || session
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        {/* Logo */}
+    <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        {/* Brand */}
         <button
           onClick={() => setCurrentView("home")}
-          className="flex items-center gap-2 font-bold text-lg transition-colors hover:text-primary"
+          className="flex items-center gap-2 transition-opacity hover:opacity-80"
         >
-          <CalendarDays className="h-6 w-6 text-primary" />
-          <span className="hidden sm:inline">EventHub</span>
+          <CalendarDays className="size-6 text-emerald-500" />
+          <span className="text-xl font-bold tracking-tight text-foreground">
+            EventHub
+          </span>
         </button>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1">
-          {filteredNavItems.map((item) => (
-            <Button
-              key={item.view}
-              variant={currentView === item.view ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setCurrentView(item.view)}
-              className="flex items-center gap-2"
+        <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
+          {visibleLinks.map((link) => (
+            <button
+              key={link.view}
+              onClick={() => setCurrentView(link.view)}
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                currentView === link.view
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
             >
-              {item.icon}
-              <span>{item.label}</span>
-            </Button>
+              {link.label}
+            </button>
           ))}
         </nav>
 
-        {/* Desktop Auth + Theme Toggle */}
-        <div className="hidden md:flex items-center gap-2">
+        {/* Right Section */}
+        <div className="flex items-center gap-2">
           <ThemeToggle />
-          {session?.user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 px-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                      {session.user.name?.charAt(0).toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm font-medium hidden lg:inline">
-                    {session.user.name}
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  <span>{session.user.email}</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => setCurrentView("dashboard")}
-                  className="flex items-center gap-2"
-                >
-                  <LayoutDashboard className="h-4 w-4" />
-                  <span>Dashboard</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setCurrentView("events")}
-                  className="flex items-center gap-2"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  <span>My Events</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => signOut()}
-                  className="flex items-center gap-2 text-destructive"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Sign Out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setCurrentView("auth")}
-              >
-                Sign In
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => setCurrentView("auth")}
-              >
-                Get Started
-              </Button>
-            </div>
-          )}
-        </div>
 
-        {/* Mobile Menu */}
-        <div className="flex md:hidden items-center gap-1">
-          <ThemeToggle />
-          <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-72">
-              <div className="flex flex-col gap-4 mt-8">
-                <div className="flex flex-col gap-1">
-                  {filteredNavItems.map((item) => (
-                    <Button
-                      key={item.view}
-                      variant={currentView === item.view ? "secondary" : "ghost"}
-                      className="flex items-center gap-3 justify-start"
+          {/* Desktop Auth */}
+          <div className="hidden items-center gap-2 md:flex">
+            {session ? (
+              <>
+                <span className="text-sm text-muted-foreground">
+                  Hi, <span className="font-medium text-foreground">{session.user?.name}</span>
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => signOut()}
+                  className="gap-1.5 text-muted-foreground hover:text-foreground"
+                >
+                  <LogOut className="size-4" />
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentView("auth")}
+                >
+                  Login
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setCurrentView("auth")}
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  Sign Up
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Mobile Menu */}
+          <div className="md:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="size-9">
+                  <Menu className="size-5" />
+                  <span className="sr-only">Open menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-72">
+                <SheetHeader>
+                  <SheetTitle className="flex items-center gap-2">
+                    <CalendarDays className="size-5 text-emerald-500" />
+                    EventHub
+                  </SheetTitle>
+                </SheetHeader>
+                <nav className="flex flex-col gap-1 px-4" aria-label="Mobile navigation">
+                  {visibleLinks.map((link) => (
+                    <button
+                      key={link.view}
                       onClick={() => {
-                        setCurrentView(item.view);
-                        setSidebarOpen(false);
+                        setCurrentView(link.view);
                       }}
+                      className={`rounded-md px-3 py-2.5 text-left text-sm font-medium transition-colors ${
+                        currentView === link.view
+                          ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      }`}
                     >
-                      {item.icon}
-                      <span>{item.label}</span>
-                    </Button>
+                      {link.label}
+                    </button>
                   ))}
-                </div>
-                <div className="border-t pt-4">
-                  {session?.user ? (
-                    <div className="flex flex-col gap-2">
-                      <div className="px-4 py-2">
-                        <p className="text-sm font-medium">{session.user.name}</p>
-                        <p className="text-xs text-muted-foreground">{session.user.email}</p>
-                      </div>
+                </nav>
+                <div className="mt-auto border-t px-4 pt-4">
+                  {session ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Signed in as{" "}
+                        <span className="font-medium text-foreground">
+                          {session.user?.name}
+                        </span>
+                      </p>
                       <Button
                         variant="outline"
-                        onClick={() => {
-                          signOut();
-                          setSidebarOpen(false);
-                        }}
-                        className="flex items-center gap-2 justify-start"
+                        size="sm"
+                        className="w-full gap-1.5"
+                        onClick={() => signOut()}
                       >
-                        <LogOut className="h-4 w-4" />
-                        <span>Sign Out</span>
+                        <LogOut className="size-4" />
+                        Logout
                       </Button>
                     </div>
                   ) : (
-                    <Button
-                      onClick={() => {
-                        setCurrentView("auth");
-                        setSidebarOpen(false);
-                      }}
-                    >
-                      Sign In / Register
-                    </Button>
+                    <div className="space-y-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setCurrentView("auth")}
+                      >
+                        Login
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                        onClick={() => setCurrentView("auth")}
+                      >
+                        Sign Up
+                      </Button>
+                    </div>
                   )}
                 </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </div>
     </header>

@@ -2,444 +2,418 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useAppStore } from "@/store/app-store";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CalendarDays,
-  Loader2,
   Mail,
   Lock,
   User,
   Eye,
   EyeOff,
+  Loader2,
   ArrowLeft,
   CheckCircle2,
   Circle,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useAppStore } from "@/store/app-store";
 
-function PasswordRequirements({ password }: { password: string }) {
-  const requirements = [
-    { label: "At least 6 characters", met: password.length >= 6 },
-    { label: "Contains a number", met: /\d/.test(password) },
-    { label: "Contains uppercase letter", met: /[A-Z]/.test(password) },
-  ];
+/* ------------------------------------------------------------------ */
+/*  Password requirement helpers                                       */
+/* ------------------------------------------------------------------ */
+function hasMinLength(pw: string) {
+  return pw.length >= 6;
+}
+function hasNumber(pw: string) {
+  return /\d/.test(pw);
+}
+function hasUppercase(pw: string) {
+  return /[A-Z]/.test(pw);
+}
 
-  if (!password) return null;
+const requirements = [
+  { label: "At least 6 characters", check: hasMinLength },
+  { label: "Contains a number", check: hasNumber },
+  { label: "Contains uppercase letter", check: hasUppercase },
+] as const;
 
+function PasswordChecks({ password }: { password: string }) {
   return (
-    <div className="space-y-1.5 pt-1">
-      {requirements.map((req) => (
-        <div key={req.label} className="flex items-center gap-2 text-xs">
-          {req.met ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-          ) : (
-            <Circle className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-          )}
-          <span
-            className={
-              req.met ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
-            }
-          >
-            {req.label}
-          </span>
-        </div>
-      ))}
+    <ul className="space-y-1.5 pt-1">
+      {requirements.map((r) => {
+        const ok = r.check(password);
+        return (
+          <li key={r.label} className="flex items-center gap-2 text-sm">
+            {ok ? (
+              <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+            ) : (
+              <Circle className="size-4 shrink-0 text-muted-foreground/40" />
+            )}
+            <span className={ok ? "text-emerald-600" : "text-muted-foreground"}>
+              {r.label}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Shared password input                                              */
+/* ------------------------------------------------------------------ */
+function PasswordInput({
+  id,
+  label,
+  placeholder,
+  value,
+  onChange,
+  show,
+  onToggleShow,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  show: boolean;
+  onToggleShow: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="relative">
+        <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          id={id}
+          type={show ? "text" : "password"}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-12 rounded-lg bg-muted/30 pl-10 pr-10 transition-colors focus:bg-background"
+          required
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          onClick={onToggleShow}
+          aria-label={show ? "Hide password" : "Show password"}
+        >
+          {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
+      </div>
     </div>
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  AuthView                                                           */
+/* ------------------------------------------------------------------ */
 export function AuthView() {
-  const [isLoginLoading, setIsLoginLoading] = useState(false);
-  const [isRegisterLoading, setIsRegisterLoading] = useState(false);
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
-  const [showRegPassword, setShowRegPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [regPassword, setRegPassword] = useState("");
-  const { setCurrentView } = useAppStore();
+  const setCurrentView = useAppStore((s) => s.setCurrentView);
   const { toast } = useToast();
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoginLoading(true);
+  /* Tab state */
+  const [activeTab, setActiveTab] = useState<string>("signin");
 
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+  /* Sign in fields */
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  /* Register fields */
+  const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [regLoading, setRegLoading] = useState(false);
+
+  /* ---------- Handlers ---------- */
+
+  async function handleSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    setLoginLoading(true);
 
     try {
       const result = await signIn("credentials", {
-        email,
-        password,
+        email: loginEmail,
+        password: loginPassword,
         redirect: false,
       });
 
       if (result?.error) {
         toast({
+          title: "Sign in failed",
+          description: result.error,
           variant: "destructive",
-          title: "Login Failed",
-          description:
-            result.error === "CredentialsSignin"
-              ? "Invalid email or password"
-              : "Something went wrong. Please try again.",
         });
       } else {
         toast({
           title: "Welcome back!",
-          description: "You have been logged in successfully.",
+          description: "You have been signed in successfully.",
         });
         setCurrentView("dashboard");
       }
     } catch {
       toast({
+        title: "Sign in failed",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
-        title: "Login Failed",
-        description: "Something went wrong. Please try again.",
       });
     } finally {
-      setIsLoginLoading(false);
+      setLoginLoading(false);
     }
-  };
+  }
 
-  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+  async function handleCreateAccount(e: React.FormEvent) {
     e.preventDefault();
-    setIsRegisterLoading(true);
 
-    const formData = new FormData(e.currentTarget);
-    const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-    const confirmPassword = formData.get("confirmPassword") as string;
-
-    if (password !== confirmPassword) {
+    if (regPassword !== regConfirmPassword) {
       toast({
+        title: "Passwords don't match",
+        description: "Please make sure both passwords are identical.",
         variant: "destructive",
-        title: "Registration Failed",
-        description: "Passwords do not match.",
       });
-      setIsRegisterLoading(false);
       return;
     }
 
+    if (!requirements.every((r) => r.check(regPassword))) {
+      toast({
+        title: "Password too weak",
+        description: "Please meet all the password requirements.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setRegLoading(true);
+
     try {
-      const response = await fetch("/api/auth/register", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name: regName,
+          email: regEmail,
+          password: regPassword,
+        }),
       });
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (response.ok) {
+      if (!res.ok) {
         toast({
-          title: "Account Created!",
-          description: "Please sign in with your new account.",
+          title: "Registration failed",
+          description: data.error || "Something went wrong.",
+          variant: "destructive",
         });
-        // Switch to login tab
-        const loginTab = document.querySelector(
-          '[data-value="login"]'
-        ) as HTMLElement;
-        loginTab?.click();
       } else {
         toast({
-          variant: "destructive",
-          title: "Registration Failed",
-          description: data.error || "Something went wrong.",
+          title: "Account created!",
+          description: "Please sign in with your new credentials.",
         });
+        setActiveTab("signin");
       }
     } catch {
       toast({
+        title: "Registration failed",
+        description: "Could not reach the server. Please try again.",
         variant: "destructive",
-        title: "Registration Failed",
-        description: "Something went wrong. Please try again.",
       });
     } finally {
-      setIsRegisterLoading(false);
+      setRegLoading(false);
     }
-  };
+  }
+
+  /* ---------- Render ---------- */
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-16rem)] px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center gap-2.5 mb-3">
-            <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-primary/10">
-              <CalendarDays className="h-5 w-5 text-primary" />
+    <div className="flex min-h-[80vh] items-center justify-center px-4 py-12">
+      <Card className="w-full max-w-md">
+        {/* ---- Header ---- */}
+        <CardHeader className="pb-2">
+          <div className="mb-2 flex items-center justify-center gap-2">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
+              <CalendarDays className="size-5" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">EventHub</h1>
+            <span className="text-xl font-bold">EventHub</span>
           </div>
-          <p className="text-muted-foreground text-sm max-w-xs mx-auto leading-relaxed">
-            Join our community and start creating amazing events today.
-          </p>
-        </div>
+          <CardTitle className="text-center text-2xl">
+            Welcome
+          </CardTitle>
+          <CardDescription className="text-center">
+            Sign in to your account or create a new one
+          </CardDescription>
+        </CardHeader>
 
-        <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-12 mb-6 p-1 bg-muted/60 rounded-xl">
-            <TabsTrigger
-              value="login"
-              data-value="login"
-              className="h-10 rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
-            >
-              Sign In
-            </TabsTrigger>
-            <TabsTrigger
-              value="register"
-              data-value="register"
-              className="h-10 rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
-            >
-              Create Account
-            </TabsTrigger>
-          </TabsList>
+        <CardContent className="pt-2">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mx-auto flex w-full">
+              <TabsTrigger value="signin" className="flex-1">
+                Sign In
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="flex-1">
+                Create Account
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Login Form */}
-          <TabsContent value="login" className="mt-0">
-            <Card className="border-border/60 shadow-lg shadow-black/5 dark:shadow-black/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl">Welcome Back</CardTitle>
-                <CardDescription className="text-sm">
-                  Sign in to manage your events
-                </CardDescription>
-              </CardHeader>
-              <form onSubmit={handleLogin}>
-                <CardContent className="space-y-5 pt-2">
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="login-email"
-                      className="text-sm font-medium"
-                    >
-                      Email Address
-                    </Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
-                      <Input
-                        id="login-email"
-                        name="email"
-                        type="email"
-                        placeholder="you@example.com"
-                        className="pl-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
-                        required
-                      />
-                    </div>
+            {/* ===== Sign In ===== */}
+            <TabsContent value="signin">
+              <form onSubmit={handleSignIn} className="space-y-5 pt-4">
+                {/* Email */}
+                <div className="space-y-2">
+                  <Label htmlFor="login-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="h-12 rounded-lg bg-muted/30 pl-10 transition-colors focus:bg-background"
+                      required
+                    />
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="login-password"
-                      className="text-sm font-medium"
-                    >
-                      Password
-                    </Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
-                      <Input
-                        id="login-password"
-                        name="password"
-                        type={showLoginPassword ? "text" : "password"}
-                        placeholder="Enter your password"
-                        className="pl-11 pr-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
-                        required
-                        minLength={6}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowLoginPassword(!showLoginPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                        tabIndex={-1}
-                        aria-label={showLoginPassword ? "Hide password" : "Show password"}
-                      >
-                        {showLoginPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="pt-2">
-                  <Button
-                    type="submit"
-                    className="w-full h-12 text-sm font-semibold rounded-lg"
-                    disabled={isLoginLoading}
-                  >
-                    {isLoginLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      "Sign In"
-                    )}
-                  </Button>
-                </CardFooter>
+                {/* Password */}
+                <PasswordInput
+                  id="login-password"
+                  label="Password"
+                  placeholder="Enter your password"
+                  value={loginPassword}
+                  onChange={setLoginPassword}
+                  show={showLoginPassword}
+                  onToggleShow={() => setShowLoginPassword((v) => !v)}
+                />
+
+                {/* Submit */}
+                <Button
+                  type="submit"
+                  className="h-12 w-full rounded-lg font-semibold"
+                  disabled={loginLoading}
+                >
+                  {loginLoading ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Signing in…
+                    </>
+                  ) : (
+                    "Sign In"
+                  )}
+                </Button>
               </form>
-            </Card>
-          </TabsContent>
+            </TabsContent>
 
-          {/* Register Form */}
-          <TabsContent value="register" className="mt-0">
-            <Card className="border-border/60 shadow-lg shadow-black/5 dark:shadow-black/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl">Create Account</CardTitle>
-                <CardDescription className="text-sm">
-                  Fill in your details to get started
-                </CardDescription>
-              </CardHeader>
-              <form onSubmit={handleRegister}>
-                <CardContent className="space-y-5 pt-2">
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="reg-name"
-                      className="text-sm font-medium"
-                    >
-                      Full Name
-                    </Label>
-                    <div className="relative">
-                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
-                      <Input
-                        id="reg-name"
-                        name="name"
-                        placeholder="John Doe"
-                        className="pl-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
-                        required
-                      />
-                    </div>
+            {/* ===== Create Account ===== */}
+            <TabsContent value="signup">
+              <form onSubmit={handleCreateAccount} className="space-y-5 pt-4">
+                {/* Full Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="reg-name">Full Name</Label>
+                  <div className="relative">
+                    <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="reg-name"
+                      type="text"
+                      placeholder="John Doe"
+                      value={regName}
+                      onChange={(e) => setRegName(e.target.value)}
+                      className="h-12 rounded-lg bg-muted/30 pl-10 transition-colors focus:bg-background"
+                      required
+                    />
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="reg-email"
-                      className="text-sm font-medium"
-                    >
-                      Email Address
-                    </Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
-                      <Input
-                        id="reg-email"
-                        name="email"
-                        type="email"
-                        placeholder="you@example.com"
-                        className="pl-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
-                        required
-                      />
-                    </div>
+                {/* Email */}
+                <div className="space-y-2">
+                  <Label htmlFor="reg-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="reg-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      className="h-12 rounded-lg bg-muted/30 pl-10 transition-colors focus:bg-background"
+                      required
+                    />
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="reg-password"
-                      className="text-sm font-medium"
-                    >
-                      Password
-                    </Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
-                      <Input
-                        id="reg-password"
-                        name="password"
-                        type={showRegPassword ? "text" : "password"}
-                        placeholder="Create a strong password"
-                        className="pl-11 pr-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
-                        required
-                        minLength={6}
-                        onChange={(e) => setRegPassword(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowRegPassword(!showRegPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                        tabIndex={-1}
-                        aria-label={showRegPassword ? "Hide password" : "Show password"}
-                      >
-                        {showRegPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                    <PasswordRequirements password={regPassword} />
-                  </div>
+                {/* Password */}
+                <PasswordInput
+                  id="reg-password"
+                  label="Password"
+                  placeholder="Create a password"
+                  value={regPassword}
+                  onChange={setRegPassword}
+                  show={showRegPassword}
+                  onToggleShow={() => setShowRegPassword((v) => !v)}
+                />
 
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="reg-confirm"
-                      className="text-sm font-medium"
-                    >
-                      Confirm Password
-                    </Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
-                      <Input
-                        id="reg-confirm"
-                        name="confirmPassword"
-                        type={showConfirmPassword ? "text" : "password"}
-                        placeholder="Confirm your password"
-                        className="pl-11 pr-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
-                        required
-                        minLength={6}
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowConfirmPassword(!showConfirmPassword)
-                        }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                        tabIndex={-1}
-                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="pt-2">
-                  <Button
-                    type="submit"
-                    className="w-full h-12 text-sm font-semibold rounded-lg"
-                    disabled={isRegisterLoading}
-                  >
-                    {isRegisterLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating account...
-                      </>
-                    ) : (
-                      "Create Account"
-                    )}
-                  </Button>
-                </CardFooter>
+                {/* Password requirements */}
+                <PasswordChecks password={regPassword} />
+
+                {/* Confirm Password */}
+                <PasswordInput
+                  id="reg-confirm-password"
+                  label="Confirm Password"
+                  placeholder="Repeat your password"
+                  value={regConfirmPassword}
+                  onChange={setRegConfirmPassword}
+                  show={showConfirmPassword}
+                  onToggleShow={() => setShowConfirmPassword((v) => !v)}
+                />
+
+                {/* Submit */}
+                <Button
+                  type="submit"
+                  className="h-12 w-full rounded-lg font-semibold"
+                  disabled={regLoading}
+                >
+                  {regLoading ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Creating account…
+                    </>
+                  ) : (
+                    "Create Account"
+                  )}
+                </Button>
               </form>
-            </Card>
-          </TabsContent>
-        </Tabs>
+            </TabsContent>
+          </Tabs>
 
-        {/* Back to home link */}
-        <button
-          onClick={() => setCurrentView("home")}
-          className="flex items-center justify-center gap-1.5 w-full text-sm text-muted-foreground hover:text-foreground transition-colors mt-8 py-2"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to Home
-        </button>
-      </div>
+          {/* Back to Home */}
+          <div className="mt-6 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setCurrentView("home")}
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" />
+              Back to Home
+            </button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
