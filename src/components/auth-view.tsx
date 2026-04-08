@@ -15,12 +15,58 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, Loader2, Mail, Lock, User } from "lucide-react";
+import {
+  CalendarDays,
+  Loader2,
+  Mail,
+  Lock,
+  User,
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  CheckCircle2,
+  Circle,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+function PasswordRequirements({ password }: { password: string }) {
+  const requirements = [
+    { label: "At least 6 characters", met: password.length >= 6 },
+    { label: "Contains a number", met: /\d/.test(password) },
+    { label: "Contains uppercase letter", met: /[A-Z]/.test(password) },
+  ];
+
+  if (!password) return null;
+
+  return (
+    <div className="space-y-1.5 pt-1">
+      {requirements.map((req) => (
+        <div key={req.label} className="flex items-center gap-2 text-xs">
+          {req.met ? (
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+          ) : (
+            <Circle className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+          )}
+          <span
+            className={
+              req.met ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+            }
+          >
+            {req.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function AuthView() {
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [regPassword, setRegPassword] = useState("");
   const { setCurrentView } = useAppStore();
   const { toast } = useToast();
 
@@ -43,9 +89,10 @@ export function AuthView() {
         toast({
           variant: "destructive",
           title: "Login Failed",
-          description: result.error === "CredentialsSignin"
-            ? "Invalid email or password"
-            : "Something went wrong. Please try again.",
+          description:
+            result.error === "CredentialsSignin"
+              ? "Invalid email or password"
+              : "Something went wrong. Please try again.",
         });
       } else {
         toast({
@@ -100,7 +147,9 @@ export function AuthView() {
           description: "Please sign in with your new account.",
         });
         // Switch to login tab
-        const loginTab = document.querySelector('[data-value="login"]') as HTMLElement;
+        const loginTab = document.querySelector(
+          '[data-value="login"]'
+        ) as HTMLElement;
         loginTab?.click();
       } else {
         toast({
@@ -123,67 +172,106 @@ export function AuthView() {
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-16rem)] px-4 py-12">
       <div className="w-full max-w-md">
+        {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <CalendarDays className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">EventHub</h1>
+          <div className="inline-flex items-center justify-center gap-2.5 mb-3">
+            <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-primary/10">
+              <CalendarDays className="h-5 w-5 text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">EventHub</h1>
           </div>
-          <p className="text-muted-foreground">
-            {`Join our community and start creating amazing events today.`}
+          <p className="text-muted-foreground text-sm max-w-xs mx-auto leading-relaxed">
+            Join our community and start creating amazing events today.
           </p>
         </div>
 
         <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="login" data-value="login">Sign In</TabsTrigger>
-            <TabsTrigger value="register" data-value="register">Create Account</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 h-12 mb-6 p-1 bg-muted/60 rounded-xl">
+            <TabsTrigger
+              value="login"
+              data-value="login"
+              className="h-10 rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+            >
+              Sign In
+            </TabsTrigger>
+            <TabsTrigger
+              value="register"
+              data-value="register"
+              className="h-10 rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+            >
+              Create Account
+            </TabsTrigger>
           </TabsList>
 
           {/* Login Form */}
-          <TabsContent value="login">
-            <Card>
-              <CardHeader>
-                <CardTitle>Welcome Back</CardTitle>
-                <CardDescription>
+          <TabsContent value="login" className="mt-0">
+            <Card className="border-border/60 shadow-lg shadow-black/5 dark:shadow-black/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl">Welcome Back</CardTitle>
+                <CardDescription className="text-sm">
                   Sign in to manage your events
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleLogin}>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-5 pt-2">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
+                    <Label
+                      htmlFor="login-email"
+                      className="text-sm font-medium"
+                    >
+                      Email Address
+                    </Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
                       <Input
                         id="login-email"
                         name="email"
                         type="email"
                         placeholder="you@example.com"
-                        className="pl-10"
+                        className="pl-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
                         required
                       />
                     </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
+                    <Label
+                      htmlFor="login-password"
+                      className="text-sm font-medium"
+                    >
+                      Password
+                    </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
                       <Input
                         id="login-password"
                         name="password"
-                        type="password"
+                        type={showLoginPassword ? "text" : "password"}
                         placeholder="Enter your password"
-                        className="pl-10"
+                        className="pl-11 pr-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
                         required
                         minLength={6}
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                        tabIndex={-1}
+                        aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                      >
+                        {showLoginPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="pt-2">
                   <Button
                     type="submit"
-                    className="w-full"
+                    className="w-full h-12 text-sm font-semibold rounded-lg"
                     disabled={isLoginLoading}
                   >
                     {isLoginLoading ? (
@@ -201,78 +289,131 @@ export function AuthView() {
           </TabsContent>
 
           {/* Register Form */}
-          <TabsContent value="register">
-            <Card>
-              <CardHeader>
-                <CardTitle>Create Account</CardTitle>
-                <CardDescription>
+          <TabsContent value="register" className="mt-0">
+            <Card className="border-border/60 shadow-lg shadow-black/5 dark:shadow-black/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl">Create Account</CardTitle>
+                <CardDescription className="text-sm">
                   Fill in your details to get started
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleRegister}>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-5 pt-2">
                   <div className="space-y-2">
-                    <Label htmlFor="reg-name">Full Name</Label>
+                    <Label
+                      htmlFor="reg-name"
+                      className="text-sm font-medium"
+                    >
+                      Full Name
+                    </Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
                       <Input
                         id="reg-name"
                         name="name"
                         placeholder="John Doe"
-                        className="pl-10"
+                        className="pl-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
                         required
                       />
                     </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="reg-email">Email</Label>
+                    <Label
+                      htmlFor="reg-email"
+                      className="text-sm font-medium"
+                    >
+                      Email Address
+                    </Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
                       <Input
                         id="reg-email"
                         name="email"
                         type="email"
                         placeholder="you@example.com"
-                        className="pl-10"
+                        className="pl-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
                         required
                       />
                     </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="reg-password">Password</Label>
+                    <Label
+                      htmlFor="reg-password"
+                      className="text-sm font-medium"
+                    >
+                      Password
+                    </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
                       <Input
                         id="reg-password"
                         name="password"
-                        type="password"
-                        placeholder="At least 6 characters"
-                        className="pl-10"
+                        type={showRegPassword ? "text" : "password"}
+                        placeholder="Create a strong password"
+                        className="pl-11 pr-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
                         required
                         minLength={6}
+                        onChange={(e) => setRegPassword(e.target.value)}
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegPassword(!showRegPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                        tabIndex={-1}
+                        aria-label={showRegPassword ? "Hide password" : "Show password"}
+                      >
+                        {showRegPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
                     </div>
+                    <PasswordRequirements password={regPassword} />
                   </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="reg-confirm">Confirm Password</Label>
+                    <Label
+                      htmlFor="reg-confirm"
+                      className="text-sm font-medium"
+                    >
+                      Confirm Password
+                    </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
                       <Input
                         id="reg-confirm"
                         name="confirmPassword"
-                        type="password"
+                        type={showConfirmPassword ? "text" : "password"}
                         placeholder="Confirm your password"
-                        className="pl-10"
+                        className="pl-11 pr-11 h-12 text-sm rounded-lg border-border/80 bg-muted/30 focus-visible:bg-background transition-colors"
                         required
                         minLength={6}
                       />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowConfirmPassword(!showConfirmPassword)
+                        }
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                        tabIndex={-1}
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="pt-2">
                   <Button
                     type="submit"
-                    className="w-full"
+                    className="w-full h-12 text-sm font-semibold rounded-lg"
                     disabled={isRegisterLoading}
                   >
                     {isRegisterLoading ? (
@@ -290,14 +431,14 @@ export function AuthView() {
           </TabsContent>
         </Tabs>
 
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          <button
-            onClick={() => setCurrentView("home")}
-            className="hover:text-foreground transition-colors underline-offset-4 hover:underline"
-          >
-            Back to Home
-          </button>
-        </p>
+        {/* Back to home link */}
+        <button
+          onClick={() => setCurrentView("home")}
+          className="flex items-center justify-center gap-1.5 w-full text-sm text-muted-foreground hover:text-foreground transition-colors mt-8 py-2"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to Home
+        </button>
       </div>
     </div>
   );
