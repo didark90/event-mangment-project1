@@ -58,3 +58,26 @@ Stage Summary:
 - 4 code quality fixes applied (unused imports, dead UI, hook deps, type safety)
 - Proper TypeScript types with NextAuth module augmentation
 - Clean ESLint output with zero issues
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Add dark/light mode toggle feature
+
+Work Log:
+- Created ThemeProvider wrapper (src/components/theme-provider.tsx) using next-themes with class strategy
+- Created ThemeToggle component (src/components/theme-toggle.tsx) with animated Sun/Moon icons (rotate + scale transition)
+- Added ThemeProvider to layout.tsx wrapping the entire app (attribute="class", defaultTheme="system", enableSystem)
+- Added ThemeToggle button to Navbar: desktop (between nav links and auth) and mobile (next to hamburger menu)
+- Updated dark mode scrollbar colors in globals.css for better visibility on dark backgrounds
+- Fixed hardcoded badge colors in events-view.tsx and dashboard-view.tsx with dark: variants (green/orange/sky/blue badges)
+- Verified dark mode CSS variables already present in globals.css (.dark class with emerald-themed palette)
+- Ran ESLint - 0 errors, 0 warnings
+- Confirmed dev server compiles and runs with no errors
+
+Stage Summary:
+- Dark/light mode fully functional with system preference detection
+- Smooth animated toggle with sun/moon icon rotation (300ms transition)
+- All components respect theme: Navbar, Cards, Badges, Forms, Dialogs, Footer
+- Dark mode badge colors properly adapted using dark: Tailwind variants
+- Dark scrollbar styling added for consistency

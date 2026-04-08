@@ -416,7 +416,7 @@ export function EventsView() {
     const now = new Date();
     if (eventDate < now) {
       return (
-        <Badge variant="secondary" className="bg-green-100 text-green-700">
+        <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
           Past
         </Badge>
       );
@@ -426,13 +426,13 @@ export function EventsView() {
     );
     if (diffDays <= 7) {
       return (
-        <Badge variant="secondary" className="bg-orange-100 text-orange-700">
+        <Badge variant="secondary" className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
           Soon
         </Badge>
       );
     }
     return (
-      <Badge variant="secondary" className="bg-sky-100 text-sky-700">
+      <Badge variant="secondary" className="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
         Upcoming
       </Badge>
     );

@@ -22,6 +22,7 @@ import {
   Home,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import type { ViewType } from "@/store/app-store";
 
 const navItems: { label: string; view: ViewType; icon: React.ReactNode; authOnly?: boolean }[] = [
@@ -67,8 +68,9 @@ export function Navbar() {
           ))}
         </nav>
 
-        {/* Desktop Auth */}
+        {/* Desktop Auth + Theme Toggle */}
         <div className="hidden md:flex items-center gap-2">
+          <ThemeToggle />
           {session?.user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -133,63 +135,66 @@ export function Navbar() {
         </div>
 
         {/* Mobile Menu */}
-        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetTrigger asChild className="md:hidden">
-            <Button variant="ghost" size="icon">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-72">
-            <div className="flex flex-col gap-4 mt-8">
-              <div className="flex flex-col gap-1">
-                {filteredNavItems.map((item) => (
-                  <Button
-                    key={item.view}
-                    variant={currentView === item.view ? "secondary" : "ghost"}
-                    className="flex items-center gap-3 justify-start"
-                    onClick={() => {
-                      setCurrentView(item.view);
-                      setSidebarOpen(false);
-                    }}
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </Button>
-                ))}
-              </div>
-              <div className="border-t pt-4">
-                {session?.user ? (
-                  <div className="flex flex-col gap-2">
-                    <div className="px-4 py-2">
-                      <p className="text-sm font-medium">{session.user.name}</p>
-                      <p className="text-xs text-muted-foreground">{session.user.email}</p>
-                    </div>
+        <div className="flex md:hidden items-center gap-1">
+          <ThemeToggle />
+          <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72">
+              <div className="flex flex-col gap-4 mt-8">
+                <div className="flex flex-col gap-1">
+                  {filteredNavItems.map((item) => (
                     <Button
-                      variant="outline"
+                      key={item.view}
+                      variant={currentView === item.view ? "secondary" : "ghost"}
+                      className="flex items-center gap-3 justify-start"
                       onClick={() => {
-                        signOut();
+                        setCurrentView(item.view);
                         setSidebarOpen(false);
                       }}
-                      className="flex items-center gap-2 justify-start"
                     >
-                      <LogOut className="h-4 w-4" />
-                      <span>Sign Out</span>
+                      {item.icon}
+                      <span>{item.label}</span>
                     </Button>
-                  </div>
-                ) : (
-                  <Button
-                    onClick={() => {
-                      setCurrentView("auth");
-                      setSidebarOpen(false);
-                    }}
-                  >
-                    Sign In / Register
-                  </Button>
-                )}
+                  ))}
+                </div>
+                <div className="border-t pt-4">
+                  {session?.user ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="px-4 py-2">
+                        <p className="text-sm font-medium">{session.user.name}</p>
+                        <p className="text-xs text-muted-foreground">{session.user.email}</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          signOut();
+                          setSidebarOpen(false);
+                        }}
+                        className="flex items-center gap-2 justify-start"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Sign Out</span>
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        setCurrentView("auth");
+                        setSidebarOpen(false);
+                      }}
+                    >
+                      Sign In / Register
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          </SheetContent>
-        </Sheet>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   );
