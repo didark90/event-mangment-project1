@@ -276,7 +276,7 @@ export function HomeView() {
       {/* ===== Video Showcase Section ===== */}
       <section className="relative overflow-hidden bg-black">
         <video
-          className="absolute inset-0 h-full w-full object-cover opacity-40"
+          className="absolute inset-0 h-full w-full object-cover opacity-60"
           autoPlay
           muted
           loop
@@ -288,7 +288,7 @@ export function HomeView() {
             type="video/mp4"
           />
         </video>
-        <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/90 via-emerald-900/70 to-emerald-900/90" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/80" />
 
         <AnimatedSection className="relative mx-auto flex max-w-6xl flex-col items-center gap-8 px-6 py-24 text-center md:py-32">
           <h2 className="max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl md:text-5xl">
@@ -321,7 +321,7 @@ export function HomeView() {
       {/* ===== CTA ===== */}
       <section className="relative overflow-hidden bg-black">
         <video
-          className="absolute inset-0 h-full w-full object-cover opacity-30"
+          className="absolute inset-0 h-full w-full object-cover opacity-50"
           autoPlay
           muted
           loop
@@ -333,7 +333,7 @@ export function HomeView() {
             type="video/mp4"
           />
         </video>
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-800/80 to-teal-900/80" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80" />
 
         <AnimatedSection className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-20 text-center md:py-24">
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
