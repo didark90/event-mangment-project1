@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { useSession } from "next-auth/react";
 import {
@@ -17,418 +17,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/app-store";
-
-/* ------------------------------------------------------------------ */
-/*  Event Video-Style Interactive Background                            */
-/* ------------------------------------------------------------------ */
-type ShapeType = "ticket" | "star" | "confetti" | "note" | "ring" | "pin" | "bokeh" | "sparkle";
-
-interface FloatingElement {
-  x: number;
-  y: number;
-  baseX: number;
-  baseY: number;
-  vx: number;
-  vy: number;
-  size: number;
-  rotation: number;
-  rotationSpeed: number;
-  opacity: number;
-  type: ShapeType;
-  depth: number;        // 0-1, controls parallax strength
-  color: string;
-  pulse: number;        // for bokeh glow pulsing
-  pulseSpeed: number;
-}
-
-function EventVideoBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mouseRef = useRef({ x: 0.5, y: 0.5 }); // normalized 0-1
-  const elementsRef = useRef<FloatingElement[]>([]);
-  const animRef = useRef<number>(0);
-  const timeRef = useRef<number>(0);
-
-  const colors = [
-    "rgba(255,255,255,",   // white
-    "rgba(167,243,208,",  // emerald-300
-    "rgba(110,231,183,",  // emerald-400
-    "rgba(52,211,153,",   // emerald-500
-    "rgba(255,255,255,",  // white
-    "rgba(204,251,241,",  // teal-200
-    "rgba(153,246,228,",  // teal-300
-  ];
-
-  const createElement = useCallback((w: number, h: number, type?: ShapeType): FloatingElement => {
-    const types: ShapeType[] = ["ticket", "star", "confetti", "note", "ring", "pin", "bokeh", "sparkle"];
-    const t = type || types[Math.floor(Math.random() * types.length)];
-    const depth = t === "bokeh" ? Math.random() * 0.3 + 0.1 : Math.random() * 0.7 + 0.3;
-    const size = t === "bokeh"
-      ? Math.random() * 60 + 30
-      : t === "ring"
-        ? Math.random() * 25 + 10
-        : t === "ticket"
-          ? Math.random() * 18 + 14
-          : Math.random() * 8 + 4;
-
-    return {
-      x: Math.random() * w,
-      y: Math.random() * h,
-      baseX: Math.random() * w,
-      baseY: Math.random() * h,
-      vx: (Math.random() - 0.5) * (t === "bokeh" ? 0.15 : 0.4),
-      vy: t === "confetti" ? Math.random() * 0.3 + 0.15 : (Math.random() - 0.5) * 0.3,
-      size,
-      rotation: Math.random() * Math.PI * 2,
-      rotationSpeed: (Math.random() - 0.5) * 0.015,
-      opacity: t === "bokeh" ? Math.random() * 0.12 + 0.04 : Math.random() * 0.4 + 0.15,
-      type: t,
-      depth,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      pulse: Math.random() * Math.PI * 2,
-      pulseSpeed: Math.random() * 0.02 + 0.005,
-    };
-  }, []);
-
-  const initElements = useCallback((w: number, h: number) => {
-    const els: FloatingElement[] = [];
-    // Background bokeh (large, slow, faint)
-    for (let i = 0; i < 8; i++) els.push(createElement(w, h, "bokeh"));
-    // Mid-ground: rings, tickets, notes
-    for (let i = 0; i < 6; i++) els.push(createElement(w, h, "ring"));
-    for (let i = 0; i < 5; i++) els.push(createElement(w, h, "ticket"));
-    for (let i = 0; i < 4; i++) els.push(createElement(w, h, "note"));
-    // Foreground: stars, confetti, sparkles, pins
-    for (let i = 0; i < 10; i++) els.push(createElement(w, h, "star"));
-    for (let i = 0; i < 15; i++) els.push(createElement(w, h, "confetti"));
-    for (let i = 0; i < 8; i++) els.push(createElement(w, h, "sparkle"));
-    for (let i = 0; i < 4; i++) els.push(createElement(w, h, "pin"));
-    elementsRef.current = els;
-  }, [createElement]);
-
-  // Draw helpers
-  const drawTicket = useCallback((ctx: CanvasRenderingContext2D, el: FloatingElement) => {
-    ctx.save();
-    ctx.translate(el.x, el.y);
-    ctx.rotate(el.rotation);
-    ctx.globalAlpha = el.opacity;
-    const s = el.size;
-
-    // Ticket body
-    ctx.beginPath();
-    ctx.roundRect(-s / 2, -s * 0.6, s, s * 1.2, 3);
-    ctx.strokeStyle = el.color + "0.8)";
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-
-    // Dashed separator
-    ctx.setLineDash([2, 2]);
-    ctx.beginPath();
-    ctx.moveTo(-s / 2 + 4, 0);
-    ctx.lineTo(s / 2 - 4, 0);
-    ctx.strokeStyle = el.color + "0.5)";
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Star on ticket stub
-    ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-      const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
-      const r = 3;
-      const px = Math.cos(angle) * r;
-      const py = Math.sin(angle) * r + 0;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fillStyle = el.color + "0.6)";
-    ctx.fill();
-
-    ctx.restore();
-  }, []);
-
-  const drawStar = useCallback((ctx: CanvasRenderingContext2D, el: FloatingElement) => {
-    ctx.save();
-    ctx.translate(el.x, el.y);
-    ctx.rotate(el.rotation);
-    ctx.globalAlpha = el.opacity;
-    const s = el.size;
-
-    ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-      const outerAngle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
-      const innerAngle = outerAngle + Math.PI / 5;
-      ctx.lineTo(Math.cos(outerAngle) * s, Math.sin(outerAngle) * s);
-      ctx.lineTo(Math.cos(innerAngle) * s * 0.4, Math.sin(innerAngle) * s * 0.4);
-    }
-    ctx.closePath();
-    ctx.fillStyle = el.color + "0.7)";
-    ctx.fill();
-    ctx.restore();
-  }, []);
-
-  const drawSparkle = useCallback((ctx: CanvasRenderingContext2D, el: FloatingElement) => {
-    ctx.save();
-    ctx.translate(el.x, el.y);
-    ctx.rotate(el.rotation);
-    ctx.globalAlpha = el.opacity * (0.6 + Math.sin(el.pulse) * 0.4);
-    const s = el.size;
-
-    // 4-point sparkle
-    ctx.beginPath();
-    ctx.moveTo(0, -s);
-    ctx.quadraticCurveTo(s * 0.15, -s * 0.15, s, 0);
-    ctx.quadraticCurveTo(s * 0.15, s * 0.15, 0, s);
-    ctx.quadraticCurveTo(-s * 0.15, s * 0.15, -s, 0);
-    ctx.quadraticCurveTo(-s * 0.15, -s * 0.15, 0, -s);
-    ctx.fillStyle = el.color + "0.8)";
-    ctx.fill();
-    ctx.restore();
-  }, []);
-
-  const drawConfetti = useCallback((ctx: CanvasRenderingContext2D, el: FloatingElement) => {
-    ctx.save();
-    ctx.translate(el.x, el.y);
-    ctx.rotate(el.rotation);
-    ctx.globalAlpha = el.opacity;
-    const s = el.size;
-    ctx.fillStyle = el.color + "0.6)";
-    ctx.fillRect(-s / 2, -s / 4, s, s / 2);
-    ctx.restore();
-  }, []);
-
-  const drawNote = useCallback((ctx: CanvasRenderingContext2D, el: FloatingElement) => {
-    ctx.save();
-    ctx.translate(el.x, el.y);
-    ctx.rotate(el.rotation);
-    ctx.globalAlpha = el.opacity;
-    const s = el.size;
-
-    // Note head (ellipse)
-    ctx.beginPath();
-    ctx.ellipse(0, s * 0.3, s * 0.35, s * 0.25, -0.3, 0, Math.PI * 2);
-    ctx.fillStyle = el.color + "0.7)";
-    ctx.fill();
-
-    // Stem
-    ctx.beginPath();
-    ctx.moveTo(s * 0.3, s * 0.2);
-    ctx.lineTo(s * 0.3, -s * 0.7);
-    ctx.strokeStyle = el.color + "0.7)";
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-
-    // Flag
-    ctx.beginPath();
-    ctx.moveTo(s * 0.3, -s * 0.7);
-    ctx.quadraticCurveTo(s * 0.8, -s * 0.4, s * 0.3, -s * 0.1);
-    ctx.strokeStyle = el.color + "0.6)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.restore();
-  }, []);
-
-  const drawRing = useCallback((ctx: CanvasRenderingContext2D, el: FloatingElement) => {
-    ctx.save();
-    ctx.translate(el.x, el.y);
-    ctx.rotate(el.rotation);
-    ctx.globalAlpha = el.opacity;
-    ctx.beginPath();
-    ctx.arc(0, 0, el.size, 0, Math.PI * 2);
-    ctx.strokeStyle = el.color + "0.4)";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
-  }, []);
-
-  const drawPin = useCallback((ctx: CanvasRenderingContext2D, el: FloatingElement) => {
-    ctx.save();
-    ctx.translate(el.x, el.y);
-    ctx.globalAlpha = el.opacity;
-    const s = el.size;
-
-    // Pin head (teardrop)
-    ctx.beginPath();
-    ctx.moveTo(0, -s);
-    ctx.bezierCurveTo(s * 0.6, -s * 0.5, s * 0.6, s * 0.3, 0, s * 0.5);
-    ctx.bezierCurveTo(-s * 0.6, s * 0.3, -s * 0.6, -s * 0.5, 0, -s);
-    ctx.fillStyle = el.color + "0.6)";
-    ctx.fill();
-
-    // Inner dot
-    ctx.beginPath();
-    ctx.arc(0, -s * 0.3, s * 0.15, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(16,185,129,0.8)";
-    ctx.fill();
-
-    ctx.restore();
-  }, []);
-
-  const drawBokeh = useCallback((ctx: CanvasRenderingContext2D, el: FloatingElement) => {
-    ctx.save();
-    ctx.globalAlpha = el.opacity * (0.7 + Math.sin(el.pulse) * 0.3);
-    const gradient = ctx.createRadialGradient(el.x, el.y, 0, el.x, el.y, el.size);
-    gradient.addColorStop(0, el.color + "0.15)");
-    gradient.addColorStop(0.5, el.color + "0.06)");
-    gradient.addColorStop(1, el.color + "0)");
-    ctx.beginPath();
-    ctx.arc(el.x, el.y, el.size, 0, Math.PI * 2);
-    ctx.fillStyle = gradient;
-    ctx.fill();
-
-    // Ring edge
-    ctx.beginPath();
-    ctx.arc(el.x, el.y, el.size * 0.9, 0, Math.PI * 2);
-    ctx.strokeStyle = el.color + "0.06)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.restore();
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const resize = () => {
-      const rect = canvas.parentElement?.getBoundingClientRect();
-      if (!rect) return;
-      canvas.width = rect.width;
-      canvas.height = rect.height;
-      initElements(canvas.width, canvas.height);
-    };
-
-    resize();
-    window.addEventListener("resize", resize);
-
-    const handleMouse = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouseRef.current = {
-        x: (e.clientX - rect.left) / rect.width,
-        y: (e.clientY - rect.top) / rect.height,
-      };
-    };
-
-    canvas.addEventListener("mousemove", handleMouse);
-
-    // Spotlight sweep
-    let spotlightAngle = 0;
-
-    const animate = () => {
-      const { width, height } = canvas;
-      ctx.clearRect(0, 0, width, height);
-      timeRef.current += 1;
-      const t = timeRef.current;
-      const mouse = mouseRef.current;
-
-      // -- Spotlight rays from top-center --
-      spotlightAngle += 0.003;
-      ctx.save();
-      for (let i = 0; i < 3; i++) {
-        const angle = spotlightAngle + (i * Math.PI * 2) / 3;
-        const cx = width * 0.5 + Math.cos(angle) * width * 0.3;
-        const gradient = ctx.createLinearGradient(cx, 0, cx + Math.sin(angle) * 100, height * 0.8);
-        gradient.addColorStop(0, "rgba(255,255,255,0.04)");
-        gradient.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.beginPath();
-        ctx.moveTo(cx - 40, 0);
-        ctx.lineTo(cx - 120, height);
-        ctx.lineTo(cx + 120, height);
-        ctx.lineTo(cx + 40, 0);
-        ctx.closePath();
-        ctx.fillStyle = gradient;
-        ctx.fill();
-      }
-      ctx.restore();
-
-      // -- Draw all floating elements --
-      const elements = elementsRef.current;
-      const parallaxStrength = 60; // max px shift at depth=1
-
-      for (const el of elements) {
-        // Parallax offset based on mouse position and element depth
-        const offsetX = (mouse.x - 0.5) * parallaxStrength * el.depth;
-        const offsetY = (mouse.y - 0.5) * parallaxStrength * el.depth;
-        el.x = el.baseX + offsetX;
-        el.y = el.baseY + offsetY;
-
-        // Natural drift
-        el.baseX += el.vx;
-        el.baseY += el.vy;
-
-        // Wrap around edges with buffer
-        if (el.baseX < -60) el.baseX = width + 60;
-        if (el.baseX > width + 60) el.baseX = -60;
-        if (el.baseY < -60) el.baseY = height + 60;
-        if (el.baseY > height + 60) el.baseY = -60;
-
-        // Rotation
-        el.rotation += el.rotationSpeed;
-        el.pulse += el.pulseSpeed;
-
-        // Draw by type
-        switch (el.type) {
-          case "ticket": drawTicket(ctx, el); break;
-          case "star": drawStar(ctx, el); break;
-          case "confetti": drawConfetti(ctx, el); break;
-          case "note": drawNote(ctx, el); break;
-          case "ring": drawRing(ctx, el); break;
-          case "pin": drawPin(ctx, el); break;
-          case "bokeh": drawBokeh(ctx, el); break;
-          case "sparkle": drawSparkle(ctx, el); break;
-        }
-      }
-
-      // -- Floating light streaks (like video light leaks) --
-      ctx.save();
-      for (let i = 0; i < 4; i++) {
-        const streakY = ((t * 0.3 + i * 150) % (height + 200)) - 100;
-        const streakX = width * (0.15 + i * 0.25) + Math.sin(t * 0.005 + i) * 40;
-        const grad = ctx.createLinearGradient(streakX - 2, streakY, streakX + 2, streakY);
-        grad.addColorStop(0, "rgba(255,255,255,0)");
-        grad.addColorStop(0.5, "rgba(255,255,255,0.04)");
-        grad.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.fillStyle = grad;
-        ctx.fillRect(streakX - 1.5, streakY, 3, 120);
-      }
-      ctx.restore();
-
-      // -- Mouse cursor glow --
-      if (mouse.x > 0 && mouse.x < 1 && mouse.y > 0 && mouse.y < 1) {
-        const mx = mouse.x * width;
-        const my = mouse.y * height;
-        const cursorGrad = ctx.createRadialGradient(mx, my, 0, mx, my, 100);
-        cursorGrad.addColorStop(0, "rgba(255,255,255,0.06)");
-        cursorGrad.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.beginPath();
-        ctx.arc(mx, my, 100, 0, Math.PI * 2);
-        ctx.fillStyle = cursorGrad;
-        ctx.fill();
-      }
-
-      animRef.current = requestAnimationFrame(animate);
-    };
-
-    animate();
-
-    return () => {
-      window.removeEventListener("resize", resize);
-      canvas.removeEventListener("mousemove", handleMouse);
-      cancelAnimationFrame(animRef.current);
-    };
-  }, [initElements, drawTicket, drawStar, drawSparkle, drawConfetti, drawNote, drawRing, drawPin, drawBokeh]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 h-full w-full"
-      style={{ pointerEvents: "auto" }}
-    />
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Animation helpers                                                  */
@@ -520,16 +108,32 @@ export function HomeView() {
 
   return (
     <div className="flex flex-col">
-      {/* ===== Hero with Event Video Background ===== */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-800 to-teal-900">
-        {/* Interactive event-themed canvas */}
-        <EventVideoBackground />
+      {/* ===== Hero with Real Video Background ===== */}
+      <section className="relative min-h-[600px] overflow-hidden bg-black">
+        {/* Video Background — real humans at events */}
+        <video
+          className="absolute inset-0 h-full w-full object-cover"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+        >
+          <source
+            src="https://assets.mixkit.co/videos/4883/4883-720.mp4"
+            type="video/mp4"
+          />
+          <source
+            src="https://assets.mixkit.co/videos/4883/4883-720.mp4"
+            type="video/webm"
+          />
+        </video>
 
-        {/* Gradient overlays for cinematic depth */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-black/10" />
+        {/* Dark overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-black/30" />
 
-        <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-8 px-6 py-24 text-center md:py-36">
+        <div className="relative mx-auto flex min-h-[600px] max-w-6xl flex-col items-center justify-center gap-8 px-6 py-24 text-center md:py-36">
           {/* Brand pill */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -543,7 +147,7 @@ export function HomeView() {
 
           {/* Heading */}
           <motion.h1
-            className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-white drop-shadow-lg sm:text-5xl md:text-6xl"
+            className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-white drop-shadow-2xl sm:text-5xl md:text-6xl"
             variants={fadeUp}
             custom={1}
             initial="hidden"
@@ -557,7 +161,7 @@ export function HomeView() {
 
           {/* Subheading */}
           <motion.p
-            className="max-w-xl text-lg text-emerald-100/90 drop-shadow-md"
+            className="max-w-xl text-lg text-white/85 drop-shadow-lg"
             variants={fadeUp}
             custom={2}
             initial="hidden"
@@ -577,7 +181,7 @@ export function HomeView() {
           >
             <Button
               size="lg"
-              className="h-12 rounded-lg bg-white px-8 font-semibold text-emerald-700 shadow-xl shadow-black/20 hover:bg-white/90"
+              className="h-12 rounded-lg bg-white px-8 font-semibold text-emerald-700 shadow-xl shadow-black/30 hover:bg-white/90"
               onClick={() => setCurrentView("events")}
             >
               <CalendarDays className="mr-2 size-5" />
@@ -586,7 +190,7 @@ export function HomeView() {
             <Button
               size="lg"
               variant="outline"
-              className="h-12 rounded-lg border-white/30 bg-white/10 px-8 font-semibold text-white backdrop-blur-sm hover:bg-white/20 hover:text-white"
+              className="h-12 rounded-lg border-white/40 bg-white/10 px-8 font-semibold text-white backdrop-blur-sm hover:bg-white/20 hover:text-white"
               onClick={() =>
                 setCurrentView(session ? "dashboard" : "auth")
               }
@@ -600,7 +204,7 @@ export function HomeView() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.8, duration: 0.8 }}
-            className="mt-10 flex flex-col items-center gap-1.5"
+            className="mt-8 flex flex-col items-center gap-1.5"
           >
             <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/30">
               Scroll to explore
@@ -608,7 +212,7 @@ export function HomeView() {
             <motion.div
               animate={{ y: [0, 6, 0] }}
               transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              className="h-7 w-4.5 rounded-full border-2 border-white/20 p-1"
+              className="mt-1 h-7 w-4.5 rounded-full border-2 border-white/20 p-1"
             >
               <div className="h-2 w-full rounded-full bg-white/40" />
             </motion.div>
@@ -673,22 +277,79 @@ export function HomeView() {
         </div>
       </section>
 
+      {/* ===== Video Showcase Section ===== */}
+      <section className="relative overflow-hidden bg-black">
+        <video
+          className="absolute inset-0 h-full w-full object-cover opacity-40"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+        >
+          <source
+            src="https://assets.mixkit.co/videos/34491/34491-720.mp4"
+            type="video/mp4"
+          />
+        </video>
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/90 via-emerald-900/70 to-emerald-900/90" />
+
+        <AnimatedSection className="relative mx-auto flex max-w-6xl flex-col items-center gap-8 px-6 py-24 text-center md:py-32">
+          <h2 className="max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl md:text-5xl">
+            Bringing People Together,{" "}
+            <span className="text-emerald-300">One Event at a Time</span>
+          </h2>
+          <p className="max-w-xl text-lg text-white/80">
+            From intimate workshops to massive conferences, EventHub powers
+            unforgettable experiences for organizers and attendees alike.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-6 pt-2">
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-3xl font-bold text-white">120+</span>
+              <span className="text-sm text-white/60">Countries</span>
+            </div>
+            <div className="h-10 w-px bg-white/20" />
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-3xl font-bold text-white">24/7</span>
+              <span className="text-sm text-white/60">Support</span>
+            </div>
+            <div className="h-10 w-px bg-white/20" />
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-3xl font-bold text-white">10M+</span>
+              <span className="text-sm text-white/60">Tickets Sold</span>
+            </div>
+          </div>
+        </AnimatedSection>
+      </section>
+
       {/* ===== CTA ===== */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800">
-        <div className="pointer-events-none absolute -top-20 -right-20 h-[300px] w-[300px] rounded-full bg-white/5 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 -left-20 h-[250px] w-[250px] rounded-full bg-white/5 blur-3xl" />
+      <section className="relative overflow-hidden bg-black">
+        <video
+          className="absolute inset-0 h-full w-full object-cover opacity-30"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+        >
+          <source
+            src="https://assets.mixkit.co/videos/4880/4880-720.mp4"
+            type="video/mp4"
+          />
+        </video>
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-800/80 to-teal-900/80" />
 
         <AnimatedSection className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-20 text-center md:py-24">
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Ready to Get Started?
           </h2>
-          <p className="max-w-md text-emerald-100">
+          <p className="max-w-md text-white/80">
             Join thousands of event organizers and attendees already using
             EventHub. Create your first event today.
           </p>
           <Button
             size="lg"
-            className="mt-2 h-12 rounded-lg bg-white px-8 font-semibold text-emerald-700 shadow-lg shadow-black/10 hover:bg-white/90"
+            className="mt-2 h-12 rounded-lg bg-white px-8 font-semibold text-emerald-700 shadow-lg shadow-black/20 hover:bg-white/90"
             onClick={() => setCurrentView("auth")}
           >
             Sign Up Now
