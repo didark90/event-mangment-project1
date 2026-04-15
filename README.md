@@ -83,6 +83,8 @@ db/
 
 ## Getting Started
 
+1 - This is for localhost 
+
 ### Prerequisites
 
 - **Node.js** 18+ or **Bun** 1.0+
@@ -144,6 +146,29 @@ bun run dev
 The app will be available at **http://localhost:3000**.
 
 ---
+
+This is for docker images run :
+
+1. Build Docker Image
+```bash
+docker-compose build
+```
+
+2. Build Docker Image
+   
+```bash
+docker-compose up -d
+```
+3. Build Docker Image
+   
+```bash
+docker-compose build
+
+```
+5. Access the App
+```bash
+http://localhost:3000
+```
 
 ## Available Scripts
 
