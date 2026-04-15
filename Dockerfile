@@ -1,31 +1,25 @@
-# 1. Base image
-FROM node:20-alpine AS base
+# Use Bun official image
+FROM oven/bun:1.1.13
 
-# 2. Install dependencies
-FROM base AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install
 
-# 3. Build app
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Copy only Bun files first (important for caching)
+COPY bun.lockb package.json ./
+
+# Install dependencies with Bun only
+RUN bun install --frozen-lockfile
+
+# Copy rest of the app
 COPY . .
-RUN npx prisma generate
-RUN npm run build
 
-# 4. Production image
-FROM base AS runner
-WORKDIR /app
+# Generate Prisma client
+RUN bunx prisma generate
 
-ENV NODE_ENV=production
-
-# Copy built app
-COPY --from=builder /app ./
+# Build Next.js app
+RUN bun run build
 
 # Expose port
 EXPOSE 3000
 
-# Start app
-CMD ["npm", "start"]
+# Start app (NO npm)
+CMD ["bun", "run", "start"]
