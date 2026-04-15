@@ -88,10 +88,15 @@ db/
 - **Node.js** 18+ or **Bun** 1.0+
 - A terminal / command prompt
 
-### Install Bun (Required)
+### 0. Install Bun (Required)
 This project is optimized for Bun runtime, so you must install it.
 ```bash
 curl -fsSL https://bun.sh/install | bash
+```
+Then restart your terminal and verify:
+
+```bash
+bun --version
 ```
 ### 1. Clone the Repository
 
