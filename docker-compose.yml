@@ -1,15 +1,22 @@
 version: "3.9"
 
 services:
-  app:
+  eventhub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
     container_name: eventhub_app
-    build: .
+
     ports:
       - "3000:3000"
-    environment:
-      - DATABASE_URL=file:./db/custom.db
-      - NEXTAUTH_SECRET=your-secret
-      - NEXTAUTH_URL=http://localhost:3000
+
     volumes:
       - ./db:/app/db
+
+    environment:
+      DATABASE_URL: file:./db/custom.db
+      NEXTAUTH_SECRET: eventmanagementplatformsecret2024
+      NEXTAUTH_URL: http://localhost:3000
+
     restart: unless-stopped
