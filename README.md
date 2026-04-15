@@ -157,13 +157,18 @@ docker-compose build
 2. Build Docker Image
    
 ```bash
-docker-compose up -d
+docker system prune -f
 ```
 3. Build Docker Image
    
 ```bash
-docker-compose build
+docker-compose build --no-cache
 
+```
+3. Build Docker UP
+   
+```bash
+docker-compose up
 ```
 5. Access the App
 ```bash
