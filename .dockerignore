@@ -1,47 +1,9 @@
-# Dependencies
-node_modules
-bun.lockb
-package-lock.json
-yarn.lock
-
-# Build outputs
-.next
-out
-dist
-build
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Environment files
+node_modules/
+.bun/
+data/
+*.db
+*.db-wal
+*.db-shm
 .env
 .env.local
-.env.development
-.env.test
-.env.production
-
-# Git
-.git
-.gitignore
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Editor files
-.vscode
-.idea
-
-# Docker files (optional)
-docker-compose.yml
-Dockerfile
-
-# Prisma (optional cache)
-prisma/*.db-journal
-
-# Misc
-coverage
-*.md
+*.log
