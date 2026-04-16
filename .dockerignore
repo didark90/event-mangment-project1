@@ -1,9 +1,48 @@
+# Dependencies
 node_modules/
 .bun/
-data/
-*.db
-*.db-wal
-*.db-shm
+
+# Build output
+.next/
+dist/
+out/
+
+# Environment files
 .env
 .env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# Logs
 *.log
+dev.log
+server.log
+
+# Misc
+README.md
+download/
+upload/
+dotnet-reference/
+examples/
+mini-services/
+worklog.md
+*.md
+db/
