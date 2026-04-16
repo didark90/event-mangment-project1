@@ -1,22 +1,93 @@
-version: "3.9"
+# ============================================
+# EventHub Platform - Docker Compose
+# ============================================
+# Services:
+#   - db        : PostgreSQL 16 database
+#   - web       : Next.js 16 application (port 3000)
+#   - api       : EventHub REST API (port 3005)
+# ============================================
 
 services:
-  eventhub:
+  # -------- PostgreSQL Database --------
+  db:
+    image: postgres:16-alpine
+    container_name: eventhub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-eventhub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eventhub_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-eventhub}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - eventhub-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eventhub} -d ${POSTGRES_DB:-eventhub}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # -------- Next.js Web Application --------
+  web:
     build:
       context: .
       dockerfile: Dockerfile
-
-    container_name: eventhub_app
-
-    ports:
-      - "3000:3000"
-
-    volumes:
-      - ./db:/app/db
-
-    environment:
-      DATABASE_URL: file:./db/custom.db
-      NEXTAUTH_SECRET: eventmanagementplatformsecret2024
-      NEXTAUTH_URL: http://localhost:3000
-
+    container_name: eventhub-web
     restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-eventhub}:${POSTGRES_PASSWORD:-eventhub_secret}@db:5432/${POSTGRES_DB:-eventhub}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-changeme-change-this-secret-key}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost}
+    networks:
+      - eventhub-network
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # -------- EventHub REST API --------
+  api:
+    build:
+      context: ./mini-services/eventhub-api
+      dockerfile: Dockerfile
+    container_name: eventhub-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-3005}:3005"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-eventhub}:${POSTGRES_PASSWORD:-eventhub_secret}@db:5432/${POSTGRES_DB:-eventhub}
+      - JWT_SECRET=${JWT_SECRET:-changeme-jwt-secret-key}
+      - PORT=3005
+    networks:
+      - eventhub-network
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3005/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+# -------- Networks --------
+networks:
+  eventhub-network:
+    driver: bridge
+
+# -------- Volumes --------
+volumes:
+  postgres-data:
+    driver: local
